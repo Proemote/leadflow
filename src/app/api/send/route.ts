@@ -33,8 +33,8 @@ export async function POST(req: NextRequest) {
     role: "assistant",
     content: text.trim(),
     whatsapp_message_id: wamid,
-    status: "sent",
+    status: wamid ? "sent" : "failed",
   });
 
-  return NextResponse.json({ ok: true, message: msg });
+  return NextResponse.json({ ok: wamid !== null, message: msg, sent: wamid !== null });
 }

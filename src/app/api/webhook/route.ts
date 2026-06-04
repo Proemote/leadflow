@@ -121,14 +121,14 @@ async function handleIncomingMessage(
     name: contact.name,
   });
 
-  // Enviar por WhatsApp y guardar con wamid
+  // Enviar por WhatsApp y guardar con wamid (status real: failed si no salió)
   const wamid = await sendWhatsAppText(phone, reply);
   await insertMessage({
     contact_id: contact.id,
     role: "assistant",
     content: reply,
     whatsapp_message_id: wamid,
-    status: "sent",
+    status: wamid ? "sent" : "failed",
   });
 
   // Calificación en "background" (después de 3+ mensajes del usuario)
