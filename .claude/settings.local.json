@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(perl -pi -e 's/Berta/Leo/g' src/app/layout.tsx src/app/api/chat/route.ts src/app/api/settings/route.ts src/app/api/webhook/route.ts src/app/api/cron/followup/route.ts \"src/app/\\(panel\\)/settings/page.tsx\" \"src/app/\\(panel\\)/dashboard/page.tsx\" \"src/app/\\(panel\\)/test-chat/page.tsx\" src/components/SettingsForm.tsx src/components/TestChat.tsx src/components/ConversationsList.tsx src/components/Sidebar.tsx src/components/ConversationView.tsx src/lib/email.ts src/lib/berta.ts src/lib/leads.ts src/lib/openrouter.ts README.md supabase/schema.sql)",
+      "Bash(grep -rl \"Berta\" src README.md supabase)",
+      "Bash(git mv *)",
+      "Bash(mv src/lib/berta.ts src/lib/leo.ts)",
+      "Bash(xargs perl -pi -e 's{@/lib/berta}{\\\\@/lib/leo}g')",
+      "Bash(perl -pi -e 's/\\\\bacá\\\\b/aquí/g' src/app/api/webhook/route.ts)",
+      "Bash(npm run *)"
+    ]
+  }
+}
