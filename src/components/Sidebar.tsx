@@ -12,6 +12,7 @@ import {
   IconCalendar,
   IconUsers,
   IconKanban,
+  IconSliders,
 } from "./icons";
 
 const NAV = [
@@ -23,6 +24,7 @@ const NAV = [
   { href: "/reservas", label: "Reservas", Icon: IconCalendar },
   { href: "/settings", label: "Leo · Instrucciones", Icon: IconSettings },
   { href: "/test-chat", label: "Chat de prueba", Icon: IconFlask },
+  { href: "/configuracion", label: "Ajustes", Icon: IconSliders },
 ];
 
 export function Sidebar() {
