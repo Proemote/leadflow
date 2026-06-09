@@ -41,8 +41,8 @@ export function clockTime(iso: string): string {
   });
 }
 
-export function initials(name: string | null, phone: string): string {
-  const base = name ?? phone;
+export function initials(name: string | null, phone: string | null): string {
+  const base = name ?? phone ?? "?";
   const parts = base.trim().split(/\s+/);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return base.replace("+", "").slice(0, 2).toUpperCase();

@@ -111,6 +111,22 @@ export const IconCalendar = (p: P) => (
   </svg>
 );
 
+export const IconUsers = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+  </svg>
+);
+
+export const IconKanban = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="3" y="3" width="6" height="13" rx="1.5" />
+    <rect x="10.5" y="3" width="6" height="9" rx="1.5" />
+    <rect x="18" y="3" width="3.5" height="16" rx="1.5" />
+  </svg>
+);
+
 export const IconPlus = (p: P) => (
   <svg {...base(p)}>
     <path d="M12 5v14M5 12h14" />

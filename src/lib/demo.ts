@@ -5,6 +5,8 @@ import {
   ConversationSummary,
   Service,
   Booking,
+  Operation,
+  Opportunity,
 } from "./types";
 
 /**
@@ -88,6 +90,40 @@ export const demoBookings: Booking[] = [
   { id: "b2", contact_id: "c3", service_id: "s2", customer_name: "Sarah Jenkins", customer_phone: "+34622222222", scheduled_at: at(0, "16:30"), duration_min: 45, party_size: null, status: "pending", notes: null, created_at: ago(90), service_name: "Manicura semipermanente" },
   { id: "b3", contact_id: null, service_id: "s3", customer_name: "Lucía Romero", customer_phone: "+34633333333", scheduled_at: at(1, "10:00"), duration_min: 90, party_size: null, status: "confirmed", notes: null, created_at: ago(60), service_name: "Masaje relajante" },
   { id: "b4", contact_id: "c4", service_id: "s4", customer_name: "Diego Fernández", customer_phone: "+34644444444", scheduled_at: at(2, "12:30"), duration_min: 30, party_size: null, status: "done", notes: null, created_at: ago(2000), service_name: "Corte y peinado" },
+];
+
+// ─── Cartera de clientes demo: enriquecemos algunos contactos ───
+for (const c of demoContacts) {
+  if (c.id === "c1") { c.email = "elina@clinicaglow.es"; c.company = "Clínica Glow"; c.tags = ["VIP", "Estética"]; }
+  if (c.id === "c2") { c.email = "marcus@chenstore.com"; c.company = "Chen Store"; c.tags = ["Ecommerce"]; }
+  if (c.id === "c3") { c.email = "sarah@jenkins.io"; c.company = "Jenkins & Co"; c.tags = ["Referido"]; }
+}
+
+function daysAgo(days: number): string {
+  return new Date(Date.now() - days * 86_400_000).toISOString();
+}
+
+export const demoOperations: Operation[] = [
+  // c1 — cliente activo y recurrente
+  { id: "o1", contact_id: "c1", concept: "Campaña Meta Ads (mensual)", amount_cents: 60000, currency: "EUR", status: "completed", source: "manual", opportunity_id: null, date: daysAgo(280), created_at: daysAgo(280) },
+  { id: "o2", contact_id: "c1", concept: "Campaña Meta Ads (mensual)", amount_cents: 60000, currency: "EUR", status: "completed", source: "manual", opportunity_id: null, date: daysAgo(160), created_at: daysAgo(160) },
+  { id: "o3", contact_id: "c1", concept: "Diseño de landing", amount_cents: 90000, currency: "EUR", status: "completed", source: "manual", opportunity_id: null, date: daysAgo(40), created_at: daysAgo(40) },
+  // c2 — una compra, en riesgo
+  { id: "o4", contact_id: "c2", concept: "Auditoría ecommerce", amount_cents: 45000, currency: "EUR", status: "completed", source: "manual", opportunity_id: null, date: daysAgo(120), created_at: daysAgo(120) },
+  // c3 — compra antigua, inactivo
+  { id: "o5", contact_id: "c3", concept: "Branding básico", amount_cents: 120000, currency: "EUR", status: "completed", source: "manual", opportunity_id: null, date: daysAgo(400), created_at: daysAgo(400) },
+  // pendiente (no cuenta para CLV)
+  { id: "o6", contact_id: "c1", concept: "Vídeo promocional", amount_cents: 80000, currency: "EUR", status: "pending", source: "manual", opportunity_id: null, date: daysAgo(5), created_at: daysAgo(5) },
+];
+
+export const demoOpportunities: Opportunity[] = [
+  { id: "op1", title: "Web corporativa", contact_id: "c4", contact_name: "Diego Fernández", value_cents: 250000, currency: "EUR", probability: 40, stage: "Cualificado", expected_close: daysAgo(-20).slice(0, 10), owner: "Alex", last_activity: "Enviada propuesta inicial", created_at: daysAgo(12), updated_at: daysAgo(2) },
+  { id: "op2", title: "Gestión RRSS anual", contact_id: "c2", contact_name: "Marcus Chen", value_cents: 360000, currency: "EUR", probability: 60, stage: "Propuesta", expected_close: daysAgo(-10).slice(0, 10), owner: "Elina", last_activity: "Pendiente de aprobación", created_at: daysAgo(20), updated_at: daysAgo(1) },
+  { id: "op3", title: "Tienda online", contact_id: "c5", contact_name: "Lucía Romero", value_cents: 180000, currency: "EUR", probability: 20, stage: "Contactado", expected_close: daysAgo(-30).slice(0, 10), owner: "Alex", last_activity: "Primer contacto", created_at: daysAgo(6), updated_at: daysAgo(6) },
+  { id: "op4", title: "Rediseño marca", contact_id: "c3", contact_name: "Sarah Jenkins", value_cents: 140000, currency: "EUR", probability: 80, stage: "Negociación", expected_close: daysAgo(-5).slice(0, 10), owner: "Elina", last_activity: "Negociando alcance", created_at: daysAgo(25), updated_at: daysAgo(1) },
+  { id: "op5", title: "Campaña lanzamiento", contact_id: "c1", contact_name: "Elina Lopez", value_cents: 300000, currency: "EUR", probability: 100, stage: "Ganado", expected_close: daysAgo(15).slice(0, 10), owner: "Alex", last_activity: "Cerrada y facturada", created_at: daysAgo(60), updated_at: daysAgo(15) },
+  { id: "op6", title: "SEO local", contact_id: null, contact_name: null, value_cents: 90000, currency: "EUR", probability: 0, stage: "Perdido", expected_close: daysAgo(20).slice(0, 10), owner: "Alex", last_activity: "Eligió a otra agencia", created_at: daysAgo(50), updated_at: daysAgo(20) },
+  { id: "op7", title: "Newsletter mensual", contact_id: null, contact_name: null, value_cents: 60000, currency: "EUR", probability: 10, stage: "Nuevo", expected_close: null, owner: "Elina", last_activity: "Lead entrante", created_at: daysAgo(1), updated_at: daysAgo(1) },
 ];
 
 export function buildDemoConversations(): ConversationSummary[] {

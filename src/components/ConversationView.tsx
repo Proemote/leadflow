@@ -165,7 +165,7 @@ export function ConversationView({
 
         <div className="panel p-5 space-y-3 text-sm">
           <h3 className="font-semibold text-violet-50">Datos</h3>
-          <Row label="Teléfono" value={contact.phone} />
+          <Row label="Teléfono" value={contact.phone ?? "—"} />
           <Row label="Origen" value={contact.ad_source ?? "Directo"} />
           {contact.ctwa_clid && <Row label="CTWA" value={contact.ctwa_clid} />}
           <Row

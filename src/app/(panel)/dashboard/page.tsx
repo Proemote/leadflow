@@ -162,7 +162,7 @@ export default async function DashboardPage() {
                   className="size-9 rounded-full grid place-items-center text-xs font-bold text-white shrink-0"
                   style={{ background: "linear-gradient(140deg,#8b5cf6,#6d28d9)" }}
                 >
-                  {(c.contact.name ?? c.contact.phone).slice(0, 2).toUpperCase()}
+                  {(c.contact.name ?? c.contact.phone ?? "?").slice(0, 2).toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium text-violet-50 truncate">

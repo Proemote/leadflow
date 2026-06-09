@@ -4,13 +4,85 @@ export type MessageStatus = "sent" | "delivered" | "read" | "failed";
 
 export interface Contact {
   id: string;
-  phone: string;
+  phone: string | null;
   name: string | null;
   created_at: string;
   ad_source: string | null;
   ctwa_clid: string | null;
   blocked: boolean;
   bot_enabled: boolean;
+  // Campos de cartera de clientes
+  email?: string | null;
+  company?: string | null;
+  tags?: string[] | null;
+  notes?: string | null;
+}
+
+export type OperationStatus = "completed" | "pending" | "refunded";
+export type OperationSource = "manual" | "opportunity";
+
+export interface Operation {
+  id: string;
+  contact_id: string;
+  concept: string;
+  amount_cents: number;
+  currency: string;
+  status: OperationStatus;
+  source: OperationSource;
+  opportunity_id: string | null;
+  date: string;
+  created_at: string;
+}
+
+/** Etapas del pipeline (configurables aquí). Las dos últimas son terminales. */
+export const PIPELINE_STAGES = [
+  "Nuevo",
+  "Contactado",
+  "Cualificado",
+  "Propuesta",
+  "Negociación",
+  "Ganado",
+  "Perdido",
+] as const;
+export type PipelineStage = (typeof PIPELINE_STAGES)[number];
+export const TERMINAL_STAGES: PipelineStage[] = ["Ganado", "Perdido"];
+
+export interface Opportunity {
+  id: string;
+  title: string;
+  contact_id: string | null;
+  value_cents: number;
+  currency: string;
+  probability: number;
+  stage: PipelineStage;
+  expected_close: string | null;
+  owner: string | null;
+  last_activity: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Sólo UI: nombre del contacto resuelto */
+  contact_name?: string | null;
+}
+
+export type CustomerStatus = "potencial" | "activo" | "riesgo" | "inactivo";
+
+export interface CustomerMetrics {
+  clienteDesde: string | null;
+  antiguedad: string | null;
+  nOps: number;
+  clvCents: number;
+  aovCents: number;
+  recurrente: boolean;
+  tasaRecurrencia: number; // 0..1
+  frecuenciaMediaDias: number | null;
+  recenciaDias: number | null;
+  estado: CustomerStatus;
+}
+
+/** Contacto + sus métricas para el listado de clientes */
+export interface CustomerSummary {
+  contact: Contact;
+  metrics: CustomerMetrics;
 }
 
 export interface Message {

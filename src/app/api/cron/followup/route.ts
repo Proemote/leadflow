@@ -84,7 +84,7 @@ export async function GET(req: NextRequest) {
 
   let sent = 0;
   for (const contact of (contacts ?? []) as Contact[]) {
-    if (contact.blocked || contact.bot_enabled === false) continue;
+    if (contact.blocked || contact.bot_enabled === false || !contact.phone) continue;
 
     const history = await getRecentMessages(contact.id, 20);
     const followup = await chatCompletion(

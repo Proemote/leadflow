@@ -10,11 +10,15 @@ import {
   IconFlask,
   IconMenu,
   IconCalendar,
+  IconUsers,
+  IconKanban,
 } from "./icons";
 
 const NAV = [
   { href: "/dashboard", label: "Panel", Icon: IconDashboard },
   { href: "/conversations", label: "Conversaciones", Icon: IconChat },
+  { href: "/clientes", label: "Clientes", Icon: IconUsers },
+  { href: "/oportunidades", label: "Oportunidades", Icon: IconKanban },
   { href: "/servicios", label: "Carta · Servicios", Icon: IconMenu },
   { href: "/reservas", label: "Reservas", Icon: IconCalendar },
   { href: "/settings", label: "Leo · Instrucciones", Icon: IconSettings },

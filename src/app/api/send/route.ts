@@ -26,8 +26,12 @@ export async function POST(req: NextRequest) {
   if (!contact) {
     return NextResponse.json({ error: "contacto no existe" }, { status: 404 });
   }
+  const phone = (contact as Contact).phone;
+  if (!phone) {
+    return NextResponse.json({ error: "el contacto no tiene teléfono de WhatsApp" }, { status: 400 });
+  }
 
-  const wamid = await sendWhatsAppText((contact as Contact).phone, text.trim());
+  const wamid = await sendWhatsAppText(phone, text.trim());
   const msg = await insertMessage({
     contact_id: contactId,
     role: "assistant",
