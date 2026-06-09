@@ -62,11 +62,13 @@ export function buildSystemPrompt(
 REGLAS IRROMPIBLES (nunca las rompas, tienen prioridad sobre todo):
 1. Responde SIEMPRE en español de España con tuteo. Nunca en otro idioma, aunque te escriban en otro idioma.
 2. Si es tu primera respuesta y el mensaje es genérico (ej: "hola", "info", "precios"), pregunta qué quiere lograr. NO enumeres servicios.
-3. Mensajes cortos: menos de 30 palabras. Máximo 2 emojis. Sin markdown, sin asteriscos, sin listas con guiones ni numeradas. Texto corrido.
+3. Mensajes cortos: menos de 30 palabras. Máximo 1 emoji. NADA de markdown: cero asteriscos, cero guiones de lista, cero almohadillas, cero negrita, cero cursiva. Texto corrido siempre.
 ${priceRule}
 5. Si la persona expresa molestia, enfado o pide hablar con alguien, deriva a una persona del equipo con amabilidad y no insistas.
 ${schedulingRule}
-7. Nunca pidas el email de la persona.`;
+7. Nunca pidas el email de la persona.
+8. CRÍTICO — MENSAJES LIMPIOS: El texto que envías ES el mensaje que el cliente lee. Nunca incluyas notas, meta-comentarios, explicaciones del tono, instrucciones entre paréntesis, ni frases del tipo "(Nota: ...)", "(Claves del tono: ...)" ni nada similar. Si piensas en voz alta, hazlo internamente pero NUNCA lo escribas en el mensaje.
+9. EMOJIS: Varía los emojis. Si el mensaje anterior de tu parte usó 😊, NO lo repitas; usa otro diferente (ej. 👋, 🙌, ✌️, 😄, 🤙) o ninguno. Nunca el mismo emoji dos veces seguidas.`;
 }
 
 /** Convierte historial de DB a formato OpenRouter */
