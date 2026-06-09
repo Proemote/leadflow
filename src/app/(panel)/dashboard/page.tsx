@@ -230,7 +230,7 @@ export default async function DashboardPage() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium text-violet-50 truncate">{b.customer_name}</div>
-                    <div className="text-[11px] text-violet-300/60 truncate">{b.service_name ?? ""}</div>
+                    <div className="text-[11px] text-violet-300/60 truncate">{b.service_name ?? b.notes ?? ""}</div>
                   </div>
                   <span className={`chip ${b.status === "confirmed" ? "chip-cold" : "chip-warm"}`}>
                     {b.status === "confirmed" ? "Confirmada" : "Pendiente"}

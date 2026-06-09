@@ -5,6 +5,7 @@ import { getServices, servicesToContext } from "./services";
 import { getBusinessConfig } from "./business";
 import { getUpcomingAvailability, UpcomingDay } from "./bookings";
 import { buildBookingTools, runLeoTool, LeoContext } from "./leo-tools";
+import { nowParts, minToTime } from "./availability";
 
 const FALLBACK = "Perdona, se me han cruzado los cables. ¿Me lo repites?";
 
@@ -101,10 +102,14 @@ export async function buildLeoSystem(
     availability = availabilityToText(days);
   }
 
-  let system = buildSystemPrompt(editable || DEFAULT_SYSTEM_PROMPT, catalog, availability);
+  // Momento actual (hora de España) para que Leo interprete bien "hoy", "mañana", etc.
+  const { dateKey, minutes } = nowParts();
+  const ahora = `MOMENTO ACTUAL: hoy es ${fechaLarga(dateKey)} de ${dateKey.slice(0, 4)}, son las ${minToTime(minutes)} (hora de España). Calcula "hoy", "mañana" y "esta semana" SIEMPRE a partir de esta fecha; nunca inventes el día. Cuando confirmes una cita, indica la fecha completa (día y número), no solo "mañana".`;
+
+  let system = `${ahora}\n\n${buildSystemPrompt(editable || DEFAULT_SYSTEM_PROMPT, catalog, availability)}`;
 
   if (opts.toolsEnabled && config.businessType === "appointments") {
-    system += `\n\nHERRAMIENTAS: dispones de "consultar_disponibilidad" para ver franjas reales y "crear_reserva" para registrar la cita. Comprueba la disponibilidad antes de ofrecer una hora. Crea la reserva SOLO cuando el cliente haya confirmado servicio, día y hora; luego dile que queda pendiente de confirmación por el equipo. Nunca afirmes que has reservado si la herramienta no lo confirma.`;
+    system += `\n\nHERRAMIENTAS: dispones de "consultar_disponibilidad" para ver franjas reales y "crear_reserva" para registrar la cita. Comprueba la disponibilidad antes de ofrecer una hora. Crea la reserva con la herramienta SOLO cuando el cliente haya confirmado qué quiere, el día y la hora; luego dile que queda pendiente de confirmación por el equipo. Nunca afirmes que has reservado si la herramienta no devuelve ok:true.`;
   }
 
   return system;

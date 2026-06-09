@@ -154,7 +154,7 @@ export function MonthCalendar({ bookings }: { bookings: Booking[] }) {
                 <div key={b.id} className="flex items-center gap-3 panel-tight px-3 py-2 text-sm">
                   <span className="font-mono text-violet-200 w-12">{b.scheduled_at?.slice(11, 16)}</span>
                   <span className="text-violet-50 font-medium flex-1 truncate">{b.customer_name}</span>
-                  <span className="text-violet-300/60 truncate hidden sm:block">{b.service_name ?? ""}</span>
+                  <span className="text-violet-300/60 truncate hidden sm:block">{b.service_name ?? b.notes ?? ""}</span>
                   <span className="flex items-center gap-1.5 text-xs text-violet-300/70">
                     <span className="size-2 rounded-full" style={{ background: STATUS_DOT[b.status] }} />
                     {STATUS_LABEL[b.status]}

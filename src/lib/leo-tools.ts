@@ -1,6 +1,7 @@
 import { ToolDef } from "./openrouter";
 import { getServices } from "./services";
 import { getAvailability, createBooking } from "./bookings";
+import { getBusinessConfig } from "./business";
 import { Service } from "./types";
 
 /** Contexto del interlocutor (en WhatsApp: el contacto real). */
@@ -86,19 +87,26 @@ export async function runLeoTool(
   args: Record<string, unknown>,
   ctx: LeoContext
 ): Promise<Record<string, unknown>> {
-  const services = await getServices(true);
+  const [services, config] = await Promise.all([getServices(true), getBusinessConfig()]);
+  const hasCatalog = services.length > 0;
+  // Duración por defecto para reuniones/citas sin servicio del catálogo (agencia).
+  const defaultMin = config.slotMin || 30;
 
   if (name === "consultar_disponibilidad") {
     const servicio = String(args.servicio ?? "");
     const fecha = String(args.fecha ?? "");
     if (!isValidDate(fecha)) return { error: "La fecha debe ser YYYY-MM-DD." };
+
     const service = resolveService(services, servicio);
-    if (!service) {
+    // Si hay catálogo pero no se reconoce el servicio, pide que elija uno real.
+    if (hasCatalog && !service) {
       return { error: "Servicio no encontrado.", servicios_disponibles: services.map((s) => s.name) };
     }
-    const { slots, closed } = await getAvailability(fecha, service.duration_min ?? 30);
-    if (closed) return { fecha, servicio: service.name, cerrado: true, franjas: [] };
-    return { fecha, servicio: service.name, franjas: slots };
+    const dur = service?.duration_min ?? defaultMin;
+    const { slots, closed } = await getAvailability(fecha, dur);
+    const label = (service?.name ?? servicio) || "cita";
+    if (closed) return { fecha, concepto: label, cerrado: true, franjas: [] };
+    return { fecha, concepto: label, franjas: slots };
   }
 
   if (name === "crear_reserva") {
@@ -108,28 +116,37 @@ export async function runLeoTool(
     if (!isValidDate(fecha) || !isValidTime(hora)) {
       return { ok: false, motivo: "Formato de fecha u hora inválido." };
     }
+
     const service = resolveService(services, servicio);
-    if (!service) {
+    if (hasCatalog && !service) {
       return { ok: false, motivo: "Servicio no encontrado.", servicios_disponibles: services.map((s) => s.name) };
     }
+
+    const dur = service?.duration_min ?? defaultMin;
+    const concepto = (service?.name ?? servicio) || "Cita";
+    // Sin servicio del catálogo, el concepto va en notas para verlo en el panel/calendario.
+    const notas = [service ? null : concepto, args.notas ? String(args.notas) : null]
+      .filter(Boolean)
+      .join(" — ") || null;
+
     try {
       const booking = await createBooking({
-        service_id: service.id,
+        service_id: service?.id ?? null,
         customer_name: String(args.nombre_cliente ?? "") || ctx.name || "Cliente WhatsApp",
         customer_phone: ctx.phone ?? null,
         scheduled_at: `${fecha}T${hora}:00`,
-        duration_min: service.duration_min ?? null,
-        notes: args.notas ? String(args.notas) : null,
+        duration_min: dur,
+        notes: notas,
         contact_id: ctx.contactId ?? null,
       });
       return {
         ok: true,
         estado: "pendiente_de_confirmacion",
-        reserva: { servicio: service.name, fecha, hora, id: booking.id },
+        reserva: { concepto, fecha, hora, id: booking.id },
       };
     } catch (err) {
       if (err instanceof Error && err.message === "SLOT_TAKEN") {
-        const { slots } = await getAvailability(fecha, service.duration_min ?? 30);
+        const { slots } = await getAvailability(fecha, dur);
         return { ok: false, motivo: "Esa franja acaba de ocuparse.", franjas_libres: slots };
       }
       return { ok: false, motivo: "No se pudo crear la reserva." };

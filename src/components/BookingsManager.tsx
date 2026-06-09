@@ -163,11 +163,13 @@ function BookingGroup({
               <div className="min-w-0 flex-1">
                 <div className="font-medium text-violet-50">{b.customer_name}</div>
                 <div className="text-xs text-violet-300/60">
-                  {b.service_name ?? "Servicio"}
+                  {b.service_name ?? b.notes ?? "Cita"}
                   {b.party_size ? ` · ${b.party_size} pers.` : ""}
                   {b.customer_phone ? ` · ${b.customer_phone}` : ""}
                 </div>
-                {b.notes && <div className="text-xs text-violet-300/40 mt-0.5">“{b.notes}”</div>}
+                {b.service_name && b.notes && (
+                  <div className="text-xs text-violet-300/40 mt-0.5">“{b.notes}”</div>
+                )}
               </div>
               <div className="text-sm text-violet-100 whitespace-nowrap">
                 {isAppt || b.scheduled_at ? formatSchedule(b.scheduled_at) : "—"}

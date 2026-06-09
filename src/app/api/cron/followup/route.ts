@@ -4,6 +4,8 @@ import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/admin";
 import { getRecentMessages, insertMessage } from "@/lib/db";
 import { chatCompletion } from "@/lib/openrouter";
 import { buildLeoSystem, toChatHistory } from "@/lib/leo";
+import { getBusinessConfig } from "@/lib/business";
+import { nowParts, weekday, timeToMin } from "@/lib/availability";
 import { sendWhatsAppText } from "@/lib/whatsapp";
 import { Contact, Message } from "@/lib/types";
 
@@ -12,18 +14,12 @@ export const dynamic = "force-dynamic";
 
 const HOUR = 60 * 60 * 1000;
 
-/** Hora actual en Argentina (UTC-3, sin DST) */
-function argentinaHour(): number {
-  return (new Date().getUTCHours() - 3 + 24) % 24;
-}
-
 /**
- * Cron de follow-up (13:00, 17:00, 21:00 UTC). Detecta charlas
- * donde el último mensaje fue de Leo hace 5+ horas sin respuesta
- * y manda un follow-up contextual.
+ * Cron de follow-up. Detecta charlas donde el último mensaje fue de Leo
+ * hace 5+ horas sin respuesta y manda un follow-up contextual.
  *
  * Restricciones:
- *  - Solo entre 10:00 y 20:00 hora Argentina.
+ *  - SOLO dentro del horario de apertura del negocio (hora de España).
  *  - Solo dentro de las 23h de la última interacción (ventana WhatsApp).
  */
 export async function GET(req: NextRequest) {
@@ -34,12 +30,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, reason: "supabase no configurado" });
   }
 
-  const argHour = argentinaHour();
-  if (argHour < 10 || argHour >= 20) {
+  // No contactar fuera del horario laboral configurado (hora de España).
+  const cfg = await getBusinessConfig();
+  const { dateKey, minutes } = nowParts();
+  const ranges = cfg.openHours[String(weekday(dateKey))] ?? [];
+  const dentroDeHorario = ranges.some(
+    ([open, close]) => minutes >= timeToMin(open) && minutes < timeToMin(close)
+  );
+  if (!dentroDeHorario) {
     return NextResponse.json({
       ok: true,
-      skipped: "fuera de ventana horaria (10–20 ARG)",
-      argHour,
+      skipped: "fuera del horario laboral (hora España)",
+      horaEspana: `${dateKey} ${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`,
     });
   }
 
@@ -69,7 +71,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (candidates.length === 0) {
-    return NextResponse.json({ ok: true, sent: 0, argHour });
+    return NextResponse.json({ ok: true, sent: 0 });
   }
 
   // Traer contactos válidos (no bloqueados, bot activo)
@@ -110,5 +112,5 @@ export async function GET(req: NextRequest) {
     sent++;
   }
 
-  return NextResponse.json({ ok: true, sent, candidates: candidates.length, argHour });
+  return NextResponse.json({ ok: true, sent, candidates: candidates.length });
 }
