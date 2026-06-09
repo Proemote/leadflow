@@ -157,13 +157,13 @@ body {
   .btn-ghost {
     background: rgba(124, 58, 237, 0.1);
     border: 1px solid var(--color-edge);
-    color: #d6cfe8;
+    color: var(--text-muted);
     border-radius: 0.75rem;
     padding: 0.55rem 1rem;
     font-weight: 500;
     transition: all 0.15s ease;
   }
-  .btn-ghost:hover { background: rgba(124, 58, 237, 0.2); color: #fff; }
+  .btn-ghost:hover { background: rgba(124, 58, 237, 0.2); color: var(--text-base); }
 
   .input {
     background: var(--input-bg);
@@ -188,6 +188,28 @@ body {
     background-clip: text;
   }
   .topbar-bg { background: var(--topbar-bg); }
+
+  /* ─── Overrides tema claro ─── */
+  /* nav-item activo en claro: fondo violeta suficientemente oscuro → texto blanco ok */
+  .light .nav-item[data-active="true"] { color: #fff; }
+
+  /* chip-hot/warm/cold en claro: los fondos son semitransparentes, son legibles en ambos temas */
+
+  /* Textos en sidebar/topbar hardcodeados como violet-50 → en claro quedan legibles por la variable */
+  .light .text-violet-50  { color: var(--color-violet-50); }
+  .light .text-violet-100 { color: var(--color-violet-100); }
+  .light .text-violet-200 { color: var(--color-violet-200); }
+  .light .text-violet-300 { color: var(--color-violet-300); }
+
+  /* MonthCalendar: celdas con bg inline hardcodeado en dark — sobreescribir via CSS no funciona (inline style gana).
+     La corrección está en el componente; aquí solo neutralizamos el fondo del panel-tight en claro. */
+  .light .panel-tight { border-color: rgba(124,58,237,0.15); }
+
+  /* Inputs: placeholder visible en claro */
+  .light .input::placeholder { color: var(--input-placeholder); }
+
+  /* Scrollbar en claro */
+  .light ::-webkit-scrollbar-thumb { background: rgba(124,58,237,0.2); background-clip: content-box; }
 }
 
 /* Scrollbar sutil */

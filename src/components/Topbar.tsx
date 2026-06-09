@@ -1,7 +1,8 @@
-import Link from "next/link";
-import { IconBell, IconSearch } from "./icons";
+import { IconSearch } from "./icons";
 import { ThemeToggle } from "./ThemeToggle";
 import { getProfile, profileInitials } from "@/lib/profile";
+import { ProfileDropdown } from "./ProfileDropdown";
+import { NotificationDropdown } from "./NotificationDropdown";
 
 export async function Topbar({ subtitle }: { subtitle?: string }) {
   const profile = await getProfile();
@@ -16,22 +17,12 @@ export async function Topbar({ subtitle }: { subtitle?: string }) {
       </div>
       <div className="flex items-center gap-3 ml-auto">
         <ThemeToggle compact />
-        <button className="relative grid place-items-center size-10 rounded-xl border border-[var(--color-edge)] text-violet-200 hover:bg-violet-500/10 transition" aria-label="Notificaciones">
-          <IconBell />
-          <span className="absolute top-2.5 right-2.5 size-2 rounded-full bg-fuchsia-400 shadow-[0_0_8px_2px_rgba(192,132,252,0.7)]" />
-        </button>
-        <Link href="/configuracion" className="flex items-center gap-3 hover:opacity-90 transition">
-          <div className="text-right leading-tight hidden sm:block">
-            <div className="text-sm font-semibold text-violet-50">{profile.name}</div>
-            <div className="text-[11px] text-violet-300/60">{profile.role}</div>
-          </div>
-          <div
-            className="size-10 rounded-full grid place-items-center font-bold text-sm text-white"
-            style={{ background: "linear-gradient(140deg,#8b5cf6,#6d28d9)" }}
-          >
-            {profileInitials(profile.name)}
-          </div>
-        </Link>
+        <NotificationDropdown />
+        <ProfileDropdown
+          name={profile.name}
+          role={profile.role}
+          initials={profileInitials(profile.name)}
+        />
       </div>
     </header>
   );

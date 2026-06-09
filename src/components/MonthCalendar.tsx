@@ -113,7 +113,7 @@ export function MonthCalendar({ bookings }: { bookings: Booking[] }) {
               onClick={() => setSelected(key)}
               className="min-h-[78px] rounded-xl border p-1.5 text-left transition flex flex-col gap-1"
               style={{
-                background: isSel ? "rgba(124,58,237,0.22)" : inMonth ? "rgba(22,15,34,0.5)" : "rgba(11,7,16,0.3)",
+                background: isSel ? "rgba(124,58,237,0.22)" : inMonth ? "var(--panel-tight-bg)" : "transparent",
                 borderColor: isSel ? "rgba(168,85,247,0.5)" : "var(--color-edge-soft)",
                 opacity: inMonth ? 1 : 0.4,
               }}
