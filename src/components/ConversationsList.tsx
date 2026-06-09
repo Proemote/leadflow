@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { ConversationSummary } from "@/lib/types";
 import { timeAgo, initials, scoreLabel } from "@/lib/format";
@@ -12,9 +12,25 @@ const FILTERS = [
   { key: "cold", label: "❄️ Fríos" },
 ] as const;
 
-export function ConversationsList({ items }: { items: ConversationSummary[] }) {
+const POLL_INTERVAL = 6000;
+
+export function ConversationsList({ items: initialItems }: { items: ConversationSummary[] }) {
+  const [items, setItems] = useState(initialItems);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<string>("all");
+
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/conversations");
+        if (!res.ok) return;
+        const fresh: ConversationSummary[] = await res.json();
+        setItems(fresh);
+      } catch { /* silencioso */ }
+    };
+    const id = setInterval(poll, POLL_INTERVAL);
+    return () => clearInterval(id);
+  }, []);
 
   const filtered = useMemo(() => {
     return items.filter((c) => {

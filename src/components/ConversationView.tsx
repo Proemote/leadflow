@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { Contact, Lead, Message } from "@/lib/types";
 import { clockTime, initials, scoreLabel } from "@/lib/format";
 import { IconBack, IconBlock, IconSend, IconCheck } from "@/components/icons";
+
+const POLL_INTERVAL = 4000; // ms
 
 export function ConversationView({
   contact: initialContact,
@@ -22,6 +24,59 @@ export function ConversationView({
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [busy, setBusy] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
+  const lastCountRef = useRef(initialMessages.length);
+
+  // Auto-scroll al final cuando llegan mensajes nuevos
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    bottomRef.current?.scrollIntoView({ behavior });
+  }, []);
+
+  // Scroll inicial al montar
+  useEffect(() => {
+    scrollToBottom("instant");
+  }, [scrollToBottom]);
+
+  // Polling de mensajes nuevos (solo con Supabase real)
+  useEffect(() => {
+    if (demo) return;
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/contacts/${contact.id}/messages`);
+        if (!res.ok) return;
+        const fresh: Message[] = await res.json();
+        setMessages((prev) => {
+          // Si llegaron mensajes nuevos, reemplazar y hacer scroll
+          if (fresh.length !== prev.length) {
+            lastCountRef.current = fresh.length;
+            return fresh;
+          }
+          // Comprobar si el último mensaje cambió (ej. status read/delivered)
+          const lastFresh = fresh[fresh.length - 1];
+          const lastPrev = prev[prev.length - 1];
+          if (lastFresh?.id === lastPrev?.id && lastFresh?.status !== lastPrev?.status) {
+            return fresh;
+          }
+          return prev;
+        });
+      } catch {
+        // silencioso — no romper la UI por un fallo de red temporal
+      }
+    };
+
+    const id = setInterval(poll, POLL_INTERVAL);
+    return () => clearInterval(id);
+  }, [contact.id, demo]);
+
+  // Scroll cuando llegan mensajes nuevos
+  useEffect(() => {
+    if (messages.length > lastCountRef.current) {
+      lastCountRef.current = messages.length;
+      scrollToBottom();
+    }
+  }, [messages.length, scrollToBottom]);
 
   async function patchContact(patch: Partial<Contact>) {
     setContact((c) => ({ ...c, ...patch }));
@@ -53,6 +108,7 @@ export function ConversationView({
     };
     setMessages((m) => [...m, optimistic]);
     setText("");
+    scrollToBottom();
     try {
       if (!demo) {
         await fetch("/api/send", {
@@ -76,7 +132,7 @@ export function ConversationView({
             <IconBack />
           </Link>
           <div
-            className="size-10 rounded-full grid place-items-center text-sm font-bold text-white"
+            className="size-10 rounded-full grid place-items-center text-sm font-bold text-white shrink-0"
             style={{ background: "linear-gradient(140deg,#8b5cf6,#6d28d9)" }}
           >
             {initials(contact.name, contact.phone)}
@@ -88,10 +144,17 @@ export function ConversationView({
             <div className="text-xs text-violet-300/60">{contact.phone}</div>
           </div>
           {lead && <span className={`chip chip-${lead.score}`}>{scoreLabel(lead.score)}</span>}
+          {/* Indicador de actualización en vivo */}
+          {!demo && (
+            <div className="flex items-center gap-1.5 text-[10px] text-violet-300/50 shrink-0">
+              <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              en vivo
+            </div>
+          )}
         </div>
 
         {/* Mensajes */}
-        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-3">
+        <div ref={messagesRef} className="flex-1 overflow-y-auto px-5 py-5 space-y-3">
           {messages.map((m) => (
             <div
               key={m.id}
@@ -113,8 +176,8 @@ export function ConversationView({
                 <div className="flex items-center gap-1 justify-end mt-1 text-[10px] opacity-70">
                   {clockTime(m.created_at)}
                   {m.role === "assistant" && m.status && (
-                    <span>
-                      {m.status === "read" ? "✓✓" : m.status === "delivered" ? "✓✓" : "✓"}
+                    <span title={m.status}>
+                      {m.status === "read" ? "✓✓" : m.status === "delivered" ? "✓✓" : m.status === "failed" ? "✗" : "✓"}
                     </span>
                   )}
                 </div>
@@ -126,6 +189,8 @@ export function ConversationView({
               Aún no hay mensajes.
             </div>
           )}
+          {/* Ancla para scroll automático */}
+          <div ref={bottomRef} />
         </div>
 
         {/* Composer */}
@@ -141,7 +206,11 @@ export function ConversationView({
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send()}
           />
-          <button className="btn-primary flex items-center gap-2" onClick={send} disabled={sending || !text.trim()}>
+          <button
+            className="btn-primary flex items-center gap-2"
+            onClick={send}
+            disabled={sending || !text.trim()}
+          >
             <IconSend width={16} height={16} />
           </button>
         </div>
@@ -183,7 +252,7 @@ export function ConversationView({
             onClick={() => patchContact({ bot_enabled: !contact.bot_enabled })}
             className="w-full flex items-center justify-between panel-tight px-4 py-3 hover:border-violet-500/40 transition"
           >
-            <span className="text-sm text-violet-100">Bot (Leo) automático</span>{/* respuesta automática */}
+            <span className="text-sm text-violet-100">Bot (Leo) automático</span>
             <span
               className="relative w-11 h-6 rounded-full transition"
               style={{
