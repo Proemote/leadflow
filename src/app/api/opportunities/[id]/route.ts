@@ -10,27 +10,37 @@ export async function PATCH(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
 ) {
-  if (!isSupabaseConfigured()) {
-    return NextResponse.json({ error: "Supabase no configurado (modo demo)." }, { status: 400 });
+  try {
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json({ error: "Supabase no configurado (modo demo)." }, { status: 400 });
+    }
+    const { id } = await ctx.params;
+    const b = await req.json();
+    const patch: Record<string, unknown> = {};
+    for (const k of ["title", "contact_id", "value_cents", "probability", "stage", "expected_close", "owner", "last_activity"]) {
+      if (k in b) patch[k] = b[k];
+    }
+    const result = await updateOpportunity(id, patch as { stage?: PipelineStage });
+    return NextResponse.json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Error desconocido";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-  const { id } = await ctx.params;
-  const b = await req.json();
-  const patch: Record<string, unknown> = {};
-  for (const k of ["title", "contact_id", "value_cents", "probability", "stage", "expected_close", "owner", "last_activity"]) {
-    if (k in b) patch[k] = b[k];
-  }
-  const result = await updateOpportunity(id, patch as { stage?: PipelineStage });
-  return NextResponse.json(result);
 }
 
 export async function DELETE(
   _req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
 ) {
-  if (!isSupabaseConfigured()) {
-    return NextResponse.json({ error: "Supabase no configurado (modo demo)." }, { status: 400 });
+  try {
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json({ error: "Supabase no configurado (modo demo)." }, { status: 400 });
+    }
+    const { id } = await ctx.params;
+    await deleteOpportunity(id);
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Error desconocido";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-  const { id } = await ctx.params;
-  await deleteOpportunity(id);
-  return NextResponse.json({ ok: true });
 }

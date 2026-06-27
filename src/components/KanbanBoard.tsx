@@ -256,8 +256,17 @@ function OpportunityForm({
       }
       const url = editingId ? `/api/opportunities/${editingId}` : "/api/opportunities";
       const res = await fetch(url, { method: editingId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(editingId ? payload : { ...payload, contact_id: f.contact_id === "__new__" ? null : payload.contact_id }) });
+      if (!res.ok) {
+        let errorMsg = "Error desconocido";
+        try {
+          const err = await res.json();
+          errorMsg = err.error || errorMsg;
+        } catch {
+          errorMsg = `${res.status} ${res.statusText || "Error"}`;
+        }
+        throw new Error(errorMsg);
+      }
       const j = await res.json();
-      if (!res.ok) throw new Error(j.error ?? "Error");
       const o = j.opportunity as Opportunity;
       o.contact_name = contacts.find((c) => c.id === o.contact_id)?.name ?? (f.new_contact_name || null);
       onSaved(o);
