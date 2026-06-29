@@ -10,12 +10,31 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    if (!isSupabaseConfigured()) {
-      return NextResponse.json({ error: "Supabase no configurado (modo demo)." }, { status: 400 });
-    }
     const b = await req.json();
     if (!b.title?.trim()) {
       return NextResponse.json({ error: "El título es obligatorio." }, { status: 400 });
+    }
+
+    const value_cents =
+      typeof b.value_cents === "number" ? b.value_cents : parsePriceToCents(String(b.value ?? ""));
+
+    // Modo demo: devolver oportunidad simulada
+    if (!isSupabaseConfigured()) {
+      const opportunity = {
+        id: `tmp-${Date.now()}`,
+        title: b.title.trim(),
+        contact_id: b.contact_id || null,
+        value_cents,
+        currency: "EUR",
+        probability: Number(b.probability ?? 50),
+        stage: (b.stage as PipelineStage) ?? "Nuevo",
+        expected_close: b.expected_close || null,
+        owner: b.owner?.trim() || null,
+        last_activity: b.last_activity?.trim() || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      return NextResponse.json({ opportunity });
     }
 
     // Permite crear un contacto nuevo al vuelo
@@ -24,9 +43,6 @@ export async function POST(req: NextRequest) {
       const c = await createContact({ name: b.new_contact_name.trim() });
       contactId = c.id;
     }
-
-    const value_cents =
-      typeof b.value_cents === "number" ? b.value_cents : parsePriceToCents(String(b.value ?? ""));
 
     const opportunity = await createOpportunity({
       title: b.title.trim(),
