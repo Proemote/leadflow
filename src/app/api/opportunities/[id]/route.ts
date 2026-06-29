@@ -6,6 +6,12 @@ import { PipelineStage } from "@/lib/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function errMsg(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "object" && err !== null && "message" in err) return String((err as Record<string, unknown>).message);
+  return JSON.stringify(err);
+}
+
 export async function PATCH(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
@@ -23,8 +29,8 @@ export async function PATCH(
     const result = await updateOpportunity(id, patch as { stage?: PipelineStage });
     return NextResponse.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Error desconocido";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("[PATCH /api/opportunities/[id]]", err);
+    return NextResponse.json({ error: errMsg(err) || "Error interno" }, { status: 500 });
   }
 }
 
@@ -40,7 +46,7 @@ export async function DELETE(
     await deleteOpportunity(id);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Error desconocido";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("[DELETE /api/opportunities/[id]]", err);
+    return NextResponse.json({ error: errMsg(err) || "Error interno" }, { status: 500 });
   }
 }

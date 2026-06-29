@@ -56,7 +56,13 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ opportunity });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Error desconocido";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const message =
+      err instanceof Error
+        ? err.message
+        : typeof err === "object" && err !== null && "message" in err
+        ? String((err as Record<string, unknown>).message)
+        : JSON.stringify(err);
+    console.error("[POST /api/opportunities]", err);
+    return NextResponse.json({ error: message || "Error interno del servidor" }, { status: 500 });
   }
 }
