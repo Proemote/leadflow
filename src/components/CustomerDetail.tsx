@@ -36,6 +36,19 @@ function fecha(iso: string): string {
   return new Date(iso).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function getJourneyStageLabel(stage: string): string {
+  const labels: Record<string, string> = {
+    potencial: "Cliente potencial",
+    propuesta_enviada: "Propuesta enviada",
+    propuesta_pendiente: "Propuesta pendiente",
+    propuesta_aceptada: "Propuesta aceptada",
+    propuesta_rechazada: "Propuesta rechazada",
+    cliente: "Cliente",
+    cliente_inactivo: "Cliente inactivo",
+  };
+  return labels[stage] ?? stage;
+}
+
 export function CustomerDetail({
   contact: initialContact,
   operations: initialOps,
@@ -106,7 +119,7 @@ export function CustomerDetail({
   return (
     <div className="space-y-6">
       <Link href="/clientes" className="inline-flex items-center gap-1.5 text-sm text-violet-300 hover:text-white">
-        <IconBack width={16} height={16} /> Clientes
+        <IconBack width={16} height={16} /> Contactos
       </Link>
 
       {/* Cabecera */}
@@ -118,6 +131,11 @@ export function CustomerDetail({
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-2xl font-bold text-violet-50">{contact.name ?? "Sin nombre"}</h1>
             <span className={`chip ${meta.cls}`}>{meta.label}</span>
+            {(contact as any).journey_stage && (
+              <span className="text-[11px] px-2 py-1 rounded-full bg-amber-500/20 text-amber-200 border border-amber-500/30">
+                {getJourneyStageLabel((contact as any).journey_stage)}
+              </span>
+            )}
           </div>
           <div className="text-sm text-violet-300/70 mt-0.5">
             {[contact.company, contact.email, contact.phone].filter(Boolean).join(" · ") || "Sin datos de contacto"}
@@ -397,6 +415,7 @@ function EditContactForm({ contact, demo, onSaved, onCancel }: { contact: Contac
     email: contact.email ?? "",
     company: contact.company ?? "",
     notes: contact.notes ?? "",
+    journey_stage: (contact as any).journey_stage ?? "",
     tags: (contact.tags ?? []).join(", "),
   });
   const [busy, setBusy] = useState(false);
@@ -411,6 +430,7 @@ function EditContactForm({ contact, demo, onSaved, onCancel }: { contact: Contac
       email: f.email.trim() || null,
       company: f.company.trim() || null,
       notes: f.notes.trim() || null,
+      journey_stage: f.journey_stage || null,
       tags: f.tags.split(",").map((t) => t.trim()).filter(Boolean),
     };
 
@@ -452,6 +472,18 @@ function EditContactForm({ contact, demo, onSaved, onCancel }: { contact: Contac
           <input className="input" value={f.company} onChange={(e) => setF({ ...f, company: e.target.value })} />
         </Field>
       </div>
+      <Field label="Etapa del customer journey">
+        <select className="input" value={f.journey_stage} onChange={(e) => setF({ ...f, journey_stage: e.target.value })}>
+          <option value="">Sin clasificar</option>
+          <option value="potencial">Cliente potencial</option>
+          <option value="propuesta_enviada">Propuesta enviada</option>
+          <option value="propuesta_pendiente">Propuesta pendiente</option>
+          <option value="propuesta_aceptada">Propuesta aceptada</option>
+          <option value="propuesta_rechazada">Propuesta rechazada</option>
+          <option value="cliente">Cliente</option>
+          <option value="cliente_inactivo">Cliente inactivo</option>
+        </select>
+      </Field>
       <Field label="Etiquetas (separadas por comas)">
         <input className="input" value={f.tags} onChange={(e) => setF({ ...f, tags: e.target.value })} placeholder="VIP, Recurrente" />
       </Field>

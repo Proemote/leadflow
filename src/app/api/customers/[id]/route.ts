@@ -16,7 +16,7 @@ export async function PATCH(
     const { id } = await ctx.params;
     const b = await req.json();
     const patch: Record<string, unknown> = {};
-    for (const k of ["name", "phone", "email", "company", "tags", "notes"]) {
+    for (const k of ["name", "phone", "email", "company", "tags", "notes", "journey_stage"]) {
       if (k in b) patch[k] = b[k];
     }
     const contact = await updateContact(id, patch);
