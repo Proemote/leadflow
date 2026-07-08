@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "JSON inválido en el cuerpo de la solicitud" }, { status: 400 });
     }
 
-    if (!b.title?.trim()) {
+    if (!String(b.title || "").trim()) {
       return NextResponse.json({ error: "El título es obligatorio." }, { status: 400 });
     }
 

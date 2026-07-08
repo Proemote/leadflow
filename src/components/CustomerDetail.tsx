@@ -216,7 +216,7 @@ export function CustomerDetail({
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium text-violet-50 truncate">{cs.service_name ?? "Servicio"}</div>
                     <div className="text-[11px] text-violet-300/60">
-                      {cs.service_price_cents ? formatPrice(cs.service_price_cents, cs.service_currency) : ""} {cs.notes ? `· ${cs.notes}` : ""}
+                      {cs.service_price_cents ? formatPrice(cs.service_price_cents, cs.service_currency || undefined) : ""} {cs.notes ? `· ${cs.notes}` : ""}
                     </div>
                   </div>
                   <span className={`chip ${meta.cls}`}>{meta.label}</span>

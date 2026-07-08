@@ -237,7 +237,7 @@ function NewContactForm({ demo, onDone }: { demo: boolean; onDone: (contact?: Co
       {error && <p className="text-sm text-rose-400">{error}</p>}
       <div className="flex gap-3">
         <button className="btn-primary" onClick={save} disabled={busy}>{busy ? "Guardando…" : "Crear contacto"}</button>
-        <button className="btn-ghost" onClick={onDone}>Cancelar</button>
+        <button className="btn-ghost" onClick={() => onDone()}>Cancelar</button>
       </div>
     </div>
   );

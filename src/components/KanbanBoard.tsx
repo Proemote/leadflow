@@ -268,12 +268,13 @@ function OpportunityForm({
 
         // Guardar contacto nuevo en localStorage
         if (isNewContact && f.new_contact_name?.trim()) {
+          const contactName: string = String(f.new_contact_name).trim();
           try {
             const tempContacts = JSON.parse(localStorage.getItem("temp_contacts") || "[]");
             if (!tempContacts.find((c: any) => c.id === contact_id)) {
               tempContacts.push({
                 id: contact_id,
-                name: f.new_contact_name.trim(),
+                name: contactName,
                 phone: null,
                 email: null,
                 company: null,
@@ -286,7 +287,7 @@ function OpportunityForm({
                 created_at: new Date().toISOString(),
               });
               localStorage.setItem("temp_contacts", JSON.stringify(tempContacts));
-              onContactAdded?.({ id: contact_id, name: f.new_contact_name.trim() });
+              onContactAdded?.({ id: String(contact_id), name: contactName });
             }
           } catch (e) {
             console.error("Error saving to localStorage:", e);

@@ -16,8 +16,14 @@ export async function POST(req: NextRequest) {
     const secret = req.headers.get("x-webhook-secret");
     const expectedSecret = process.env.BREVO_WEBHOOK_SECRET;
 
+    console.log("[BREVO WEBHOOK] === INCOMING REQUEST ===");
+    console.log("[BREVO WEBHOOK] Secret from header:", secret);
+    console.log("[BREVO WEBHOOK] Expected secret:", expectedSecret);
+    console.log("[BREVO WEBHOOK] Match:", secret === expectedSecret);
+    console.log("[BREVO WEBHOOK] Headers:", Object.fromEntries(req.headers));
+
     if (!expectedSecret) {
-      console.error("[BREVO WEBHOOK] BREVO_WEBHOOK_SECRET not configured");
+      console.error("[BREVO WEBHOOK] BREVO_WEBHOOK_SECRET not configured in Vercel env");
       return NextResponse.json(
         { error: "Server configuration error" },
         { status: 500 }
@@ -25,7 +31,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (secret !== expectedSecret) {
-      console.warn("[BREVO WEBHOOK] Invalid webhook secret");
+      console.warn(`[BREVO WEBHOOK] Secret mismatch. Got: "${secret}" | Expected: "${expectedSecret}"`);
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
