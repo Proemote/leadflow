@@ -41,9 +41,9 @@ export async function POST(req: NextRequest) {
 
     // El email puede venir en "email" o en "contact.email" o "EMAIL" etc.
     let email = body.email?.toString().toLowerCase().trim() ||
-                body.contact?.email?.toString().toLowerCase().trim() ||
+                ((body.contact as any)?.email)?.toString().toLowerCase().trim() ||
                 body.EMAIL?.toString().toLowerCase().trim() ||
-                (body.attributes?.EMAIL)?.toString().toLowerCase().trim();
+                (body.attributes?.EMAIL as any)?.toString().toLowerCase().trim();
 
     if (!email) {
       console.warn("[BREVO WEBHOOK] Missing email in payload. Keys:", Object.keys(body));
@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
         success: true,
         contact_id: contactId,
         action,
-        email: email.replace(/./g, (c, i) => (i < 3 ? c : "*")), // Enmascarar para logging
+        email: email.replace(/./g, (c: string, i: number) => (i < 3 ? c : "*")), // Enmascarar para logging
       },
       { status: 200 }
     );
