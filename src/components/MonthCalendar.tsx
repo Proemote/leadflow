@@ -76,7 +76,13 @@ export function MonthCalendar({ bookings }: { bookings: Booking[] }) {
     });
   }
 
-  const selectedList = selected ? byDay.get(selected) ?? [] : [];
+  const [popup, setPopup] = useState<string | null>(null);
+  const popupList = popup ? byDay.get(popup) ?? [] : [];
+
+  function openPopup(key: string) {
+    setPopup(key);
+    setSelected(key);
+  }
 
   return (
     <div className="panel p-5">
@@ -110,7 +116,7 @@ export function MonthCalendar({ bookings }: { bookings: Booking[] }) {
           return (
             <button
               key={key}
-              onClick={() => setSelected(key)}
+              onClick={() => openPopup(key)}
               className="min-h-[78px] rounded-xl border p-1.5 text-left transition flex flex-col gap-1"
               style={{
                 background: isSel ? "rgba(124,58,237,0.22)" : inMonth ? "var(--panel-tight-bg)" : "transparent",
@@ -140,29 +146,47 @@ export function MonthCalendar({ bookings }: { bookings: Booking[] }) {
         })}
       </div>
 
-      {/* Detalle del día seleccionado */}
-      {selected && (
-        <div className="mt-5 pt-4 border-t border-[var(--color-edge-soft)]">
-          <h4 className="text-sm font-semibold text-violet-100 mb-2 capitalize">
-            {new Date(`${selected}T12:00:00`).toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })}
-          </h4>
-          {selectedList.length === 0 ? (
-            <p className="text-sm text-violet-300/50">Sin reservas este día.</p>
-          ) : (
-            <div className="space-y-2">
-              {selectedList.map((b) => (
-                <div key={b.id} className="flex items-center gap-3 panel-tight px-3 py-2 text-sm">
-                  <span className="font-mono text-violet-200 w-12">{b.scheduled_at?.slice(11, 16)}</span>
-                  <span className="text-violet-50 font-medium flex-1 truncate">{b.customer_name}</span>
-                  <span className="text-violet-300/60 truncate hidden sm:block">{b.service_name ?? b.notes ?? ""}</span>
-                  <span className="flex items-center gap-1.5 text-xs text-violet-300/70">
-                    <span className="size-2 rounded-full" style={{ background: STATUS_DOT[b.status] }} />
-                    {STATUS_LABEL[b.status]}
-                  </span>
-                </div>
-              ))}
+      {/* Popup modal al hacer click en un día */}
+      {popup && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/60 backdrop-blur-sm"
+          onClick={() => setPopup(null)}
+        >
+          <div
+            className="panel p-6 w-full max-w-md space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h4 className="font-semibold text-violet-50 capitalize">
+                {new Date(`${popup}T12:00:00`).toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })}
+              </h4>
+              <button
+                onClick={() => setPopup(null)}
+                className="size-7 grid place-items-center rounded-lg text-violet-300/60 hover:text-white hover:bg-violet-500/10"
+              >✕</button>
             </div>
-          )}
+            {popupList.length === 0 ? (
+              <p className="text-sm text-violet-300/50 text-center py-4">Sin citas este día.</p>
+            ) : (
+              <div className="space-y-2">
+                {popupList.map((b) => (
+                  <div key={b.id} className="flex items-center gap-3 panel-tight px-3 py-2.5 text-sm">
+                    <span className="font-mono text-violet-200 w-12 shrink-0">{b.scheduled_at?.slice(11, 16)}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-violet-50 font-medium truncate">{b.customer_name}</div>
+                      {(b.service_name || b.notes) && (
+                        <div className="text-[11px] text-violet-300/60 truncate">{b.service_name ?? b.notes}</div>
+                      )}
+                    </div>
+                    <span className="flex items-center gap-1.5 text-xs text-violet-300/70 shrink-0">
+                      <span className="size-2 rounded-full" style={{ background: STATUS_DOT[b.status] }} />
+                      {STATUS_LABEL[b.status]}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

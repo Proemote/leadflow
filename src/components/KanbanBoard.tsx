@@ -25,9 +25,10 @@ export function KanbanBoard({
   demo: boolean;
 }) {
   const [opps, setOpps] = useState<Opportunity[]>(initialOpportunities);
+  const [contactsList, setContactsList] = useState<ContactOpt[]>(contacts);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<string | null>(null);
-  const [editing, setEditing] = useState<Opportunity | "new" | null>(null);
+  const [editing, setEditing] = useState<Opportunity | { preset: PipelineStage } | "new" | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const metrics = useMemo(() => {
@@ -121,7 +122,14 @@ export function KanbanBoard({
                   <span className="text-sm font-semibold text-violet-50">{stage}</span>
                   <span className="text-[11px] text-violet-300/50">{items.length}</span>
                 </div>
-                <span className="text-[11px] text-violet-300/70">{sum > 0 ? formatPrice(sum) : ""}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-violet-300/70">{sum > 0 ? formatPrice(sum) : ""}</span>
+                  <button
+                    onClick={() => setEditing({ preset: stage })}
+                    title={`Añadir en ${stage}`}
+                    className="size-5 rounded-md grid place-items-center text-violet-300/60 hover:text-white hover:bg-violet-500/20 transition text-base leading-none"
+                  >+</button>
+                </div>
               </div>
               <div className="space-y-2 min-h-[60px]">
                 {items.map((o) => (
@@ -174,8 +182,14 @@ export function KanbanBoard({
 
       {editing && (
         <OpportunityForm
-          opportunity={editing === "new" ? null : editing}
-          contacts={contacts}
+          opportunity={editing === "new" || (typeof editing === "object" && "preset" in editing) ? null : editing}
+          presetStage={typeof editing === "object" && "preset" in editing ? editing.preset : undefined}
+          contacts={contactsList}
+          onContactAdded={(newContact) => {
+            if (!contactsList.find((c) => c.id === newContact.id)) {
+              setContactsList((prev) => [...prev, newContact].sort((a, b) => a.name.localeCompare(b.name)));
+            }
+          }}
           demo={demo}
           onSaved={(o) => { upsertLocal(o); setEditing(null); }}
           onClose={() => setEditing(null)}
@@ -201,16 +215,20 @@ function Kpi({ label, value, sub }: { label: string; value: string; sub?: string
 
 function OpportunityForm({
   opportunity,
+  presetStage,
   contacts,
   demo,
   onSaved,
   onClose,
+  onContactAdded,
 }: {
   opportunity: Opportunity | null;
+  presetStage?: PipelineStage;
   contacts: ContactOpt[];
   demo: boolean;
   onSaved: (o: Opportunity) => void;
   onClose: () => void;
+  onContactAdded?: (contact: ContactOpt) => void;
 }) {
   const editingId = opportunity?.id ?? null;
   const [f, setF] = useState({
@@ -219,7 +237,7 @@ function OpportunityForm({
     new_contact_name: "",
     value: opportunity ? (opportunity.value_cents / 100).toString() : "",
     probability: String(opportunity?.probability ?? 50),
-    stage: (opportunity?.stage ?? "Nuevo") as PipelineStage,
+    stage: (opportunity?.stage ?? presetStage ?? "Nuevo") as PipelineStage,
     expected_close: opportunity?.expected_close ?? "",
     owner: opportunity?.owner ?? "",
     last_activity: opportunity?.last_activity ?? "",
@@ -231,10 +249,11 @@ function OpportunityForm({
     if (!f.title.trim()) return setError("El título es obligatorio.");
     setBusy(true); setError(null);
     const value_cents = parsePriceToCents(f.value);
+    const isNewContact = f.contact_id === "__new__";
     const payload = {
       title: f.title.trim(),
-      contact_id: f.contact_id || null,
-      new_contact_name: f.contact_id === "__new__" ? f.new_contact_name : "",
+      contact_id: isNewContact ? null : (f.contact_id || null),
+      new_contact_name: isNewContact ? f.new_contact_name.trim() : "",
       value_cents,
       probability: Number(f.probability),
       stage: f.stage,
@@ -244,10 +263,39 @@ function OpportunityForm({
     };
     try {
       if (demo) {
-        const contact_name = contacts.find((c) => c.id === f.contact_id)?.name ?? (f.new_contact_name || null);
+        const contact_id = isNewContact ? `tmp-${Date.now()}` : payload.contact_id;
+        const contact_name = isNewContact ? (f.new_contact_name || null) : (contacts.find((c) => c.id === f.contact_id)?.name ?? null);
+
+        // Guardar contacto nuevo en localStorage
+        if (isNewContact && f.new_contact_name?.trim()) {
+          try {
+            const tempContacts = JSON.parse(localStorage.getItem("temp_contacts") || "[]");
+            if (!tempContacts.find((c: any) => c.id === contact_id)) {
+              tempContacts.push({
+                id: contact_id,
+                name: f.new_contact_name.trim(),
+                phone: null,
+                email: null,
+                company: null,
+                tags: [],
+                notes: null,
+                ad_source: "Oportunidad",
+                ctwa_clid: null,
+                blocked: false,
+                bot_enabled: true,
+                created_at: new Date().toISOString(),
+              });
+              localStorage.setItem("temp_contacts", JSON.stringify(tempContacts));
+              onContactAdded?.({ id: contact_id, name: f.new_contact_name.trim() });
+            }
+          } catch (e) {
+            console.error("Error saving to localStorage:", e);
+          }
+        }
+
         onSaved({
           id: editingId ?? `tmp-${Date.now()}`,
-          title: payload.title, contact_id: payload.contact_id, value_cents, currency: "EUR",
+          title: payload.title, contact_id, value_cents, currency: "EUR",
           probability: payload.probability, stage: payload.stage, expected_close: payload.expected_close,
           owner: payload.owner, last_activity: payload.last_activity,
           created_at: new Date().toISOString(), updated_at: new Date().toISOString(), contact_name,
@@ -255,7 +303,7 @@ function OpportunityForm({
         return;
       }
       const url = editingId ? `/api/opportunities/${editingId}` : "/api/opportunities";
-      const res = await fetch(url, { method: editingId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(editingId ? payload : { ...payload, contact_id: f.contact_id === "__new__" ? null : payload.contact_id }) });
+      const res = await fetch(url, { method: editingId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       let j: Record<string, unknown>;
       try {
         j = await res.json();
@@ -267,7 +315,35 @@ function OpportunityForm({
         throw new Error(errMsg);
       }
       const o = j.opportunity as Opportunity;
-      o.contact_name = contacts.find((c) => c.id === o.contact_id)?.name ?? (f.new_contact_name || null);
+      o.contact_name = (j.newContact as any)?.name ?? contacts.find((c) => c.id === o.contact_id)?.name ?? (f.new_contact_name || null);
+
+      // Guardar contacto nuevo en localStorage si fue creado
+      if ((j.newContact as any)?.id) {
+        try {
+          const tempContacts = JSON.parse(localStorage.getItem("temp_contacts") || "[]");
+          if (!tempContacts.find((c: any) => c.id === (j.newContact as any).id)) {
+            tempContacts.push({
+              id: (j.newContact as any).id,
+              name: (j.newContact as any).name,
+              phone: null,
+              email: null,
+              company: null,
+              tags: [],
+              notes: null,
+              ad_source: "Oportunidad",
+              ctwa_clid: null,
+              blocked: false,
+              bot_enabled: true,
+              created_at: new Date().toISOString(),
+            });
+            localStorage.setItem("temp_contacts", JSON.stringify(tempContacts));
+          }
+        } catch (e) {
+          console.error("Error saving to localStorage:", e);
+        }
+        onContactAdded?.({ id: (j.newContact as any).id, name: (j.newContact as any).name });
+      }
+
       onSaved(o);
     } catch (e) { setError(e instanceof Error ? e.message : "Error"); } finally { setBusy(false); }
   }

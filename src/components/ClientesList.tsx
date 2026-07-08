@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CustomerSummary } from "@/lib/types";
+import { CustomerSummary, Contact } from "@/lib/types";
 import { PortfolioAggregate } from "@/lib/customers";
 import { CUSTOMER_STATUS_META } from "@/lib/metrics";
+import { computeCustomerMetrics } from "@/lib/metrics";
 import { formatPrice, parsePriceToCents } from "@/lib/money";
 import { initials } from "@/lib/format";
 import { IconPlus, IconUsers } from "@/components/icons";
@@ -13,7 +14,7 @@ import { IconPlus, IconUsers } from "@/components/icons";
 type SortKey = "clv" | "recencia" | "antiguedad";
 
 export function ClientesList({
-  customers,
+  customers: initialCustomers,
   aggregate,
   demo,
 }: {
@@ -26,6 +27,28 @@ export function ClientesList({
   const [estado, setEstado] = useState<string>("todos");
   const [sort, setSort] = useState<SortKey>("clv");
   const [showForm, setShowForm] = useState(false);
+  const [customers, setCustomers] = useState<CustomerSummary[]>(initialCustomers);
+
+  // En modo demo, agregar contactos temporales de localStorage
+  useEffect(() => {
+    if (!demo) return;
+    try {
+      const tempContacts = JSON.parse(localStorage.getItem("temp_contacts") || "[]") as Contact[];
+      if (tempContacts.length > 0) {
+        const newCustomers = tempContacts
+          .filter((tc) => !initialCustomers.some((c) => c.contact.id === tc.id))
+          .map((tc) => ({
+            contact: tc,
+            metrics: computeCustomerMetrics(tc, []),
+          }));
+        if (newCustomers.length > 0) {
+          setCustomers([...initialCustomers, ...newCustomers]);
+        }
+      }
+    } catch (e) {
+      console.error("Error reading temp_contacts from localStorage:", e);
+    }
+  }, [demo, initialCustomers]);
 
   const filtered = useMemo(() => {
     let list = customers.filter((c) => {
@@ -83,7 +106,22 @@ export function ClientesList({
         </div>
       )}
 
-      {showForm && <NewContactForm demo={demo} onDone={() => { setShowForm(false); router.refresh(); }} />}
+      {showForm && (
+        <NewContactForm
+          demo={demo}
+          onDone={(newContact) => {
+            setShowForm(false);
+            if (newContact) {
+              setCustomers((prev) => [
+                { contact: newContact, metrics: computeCustomerMetrics(newContact, []) },
+                ...prev,
+              ]);
+            } else {
+              router.refresh();
+            }
+          }}
+        />
+      )}
 
       {/* Tabla / listado */}
       {customers.length === 0 ? (
@@ -147,7 +185,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
   );
 }
 
-function NewContactForm({ demo, onDone }: { demo: boolean; onDone: () => void }) {
+function NewContactForm({ demo, onDone }: { demo: boolean; onDone: (contact?: Contact) => void }) {
   const [f, setF] = useState({ name: "", company: "", phone: "", email: "", tags: "", notes: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -156,14 +194,31 @@ function NewContactForm({ demo, onDone }: { demo: boolean; onDone: () => void })
     if (!f.name.trim()) return setError("El nombre es obligatorio.");
     setBusy(true); setError(null);
     try {
-      if (demo) { onDone(); return; }
+      if (demo) {
+        const newContact: Contact = {
+          id: `tmp-${Date.now()}`,
+          name: f.name.trim(),
+          company: f.company || null,
+          phone: f.phone || null,
+          email: f.email || null,
+          tags: f.tags.split(",").map((t) => t.trim()).filter(Boolean),
+          notes: f.notes || null,
+          ad_source: "Manual",
+          ctwa_clid: null,
+          blocked: false,
+          bot_enabled: true,
+          created_at: new Date().toISOString(),
+        };
+        onDone(newContact);
+        return;
+      }
       const res = await fetch("/api/customers", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...f, tags: f.tags.split(",").map((t) => t.trim()).filter(Boolean) }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? "Error");
-      onDone();
+      onDone((j.contact as Contact) ?? undefined);
     } catch (e) { setError(e instanceof Error ? e.message : "Error"); } finally { setBusy(false); }
   }
 

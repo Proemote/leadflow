@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isSupabaseConfigured } from "@/lib/db";
 import { createBooking } from "@/lib/bookings";
+import { createContact } from "@/lib/customers";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +16,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "El nombre del cliente es obligatorio." }, { status: 400 });
   }
   try {
+    // Buscar o crear contacto automáticamente
+    let contactId: string | null = b.contact_id || null;
+    if (!contactId) {
+      const phone = b.customer_phone?.trim() || null;
+      if (phone) {
+        // Buscar por teléfono primero
+        const sb = supabaseAdmin();
+        const { data: existing } = await sb
+          .from("contacts")
+          .select("id")
+          .eq("phone", phone)
+          .maybeSingle();
+        contactId = existing?.id ?? null;
+      }
+      if (!contactId) {
+        const contact = await createContact({
+          name: b.customer_name.trim(),
+          phone: b.customer_phone?.trim() || null,
+          ad_source: "Agenda",
+        });
+        contactId = contact.id;
+      }
+    }
+
     const booking = await createBooking({
       service_id: b.service_id || null,
       customer_name: b.customer_name.trim(),
@@ -22,7 +48,7 @@ export async function POST(req: NextRequest) {
       duration_min: b.duration_min ?? null,
       party_size: b.party_size ?? null,
       notes: b.notes?.trim() || null,
-      contact_id: b.contact_id || null,
+      contact_id: contactId,
     });
     return NextResponse.json({ booking });
   } catch (err) {

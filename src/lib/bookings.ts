@@ -203,4 +203,9 @@ export async function getUpcomingCount(): Promise<number> {
   ).length;
 }
 
+export async function deleteBooking(id: string): Promise<void> {
+  const sb = supabaseAdmin();
+  await sb.from("bookings").delete().eq("id", id);
+}
+
 export { demoServices };

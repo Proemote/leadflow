@@ -20,8 +20,8 @@ const NAV = [
   { href: "/conversations", label: "Conversaciones", Icon: IconChat },
   { href: "/clientes", label: "Clientes", Icon: IconUsers },
   { href: "/oportunidades", label: "Oportunidades", Icon: IconKanban },
-  { href: "/servicios", label: "Carta · Servicios", Icon: IconMenu },
-  { href: "/reservas", label: "Reservas", Icon: IconCalendar },
+  { href: "/servicios", label: "Servicios", Icon: IconMenu },
+  { href: "/reservas", label: "Agenda", Icon: IconCalendar },
   { href: "/settings", label: "Leo · Instrucciones", Icon: IconSettings },
   { href: "/test-chat", label: "Chat de prueba", Icon: IconFlask },
   { href: "/configuracion", label: "Ajustes", Icon: IconSliders },
@@ -31,7 +31,7 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden md:flex w-[260px] shrink-0 flex-col gap-2 px-4 py-6 border-r border-[var(--color-edge)] min-h-screen sticky top-0">
+    <aside className="hidden md:flex w-[260px] shrink-0 flex-col gap-2 px-4 py-6 border-r border-[var(--color-edge)] h-full overflow-y-auto">
       <Link href="/dashboard" className="flex items-center gap-3 px-2 pb-6">
         <Logo size={42} />
         <div className="leading-tight">

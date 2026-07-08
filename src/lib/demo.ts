@@ -7,6 +7,7 @@ import {
   Booking,
   Operation,
   Opportunity,
+  ContactService,
 } from "./types";
 
 /**
@@ -90,6 +91,12 @@ export const demoBookings: Booking[] = [
   { id: "b2", contact_id: "c3", service_id: "s2", customer_name: "Sarah Jenkins", customer_phone: "+34622222222", scheduled_at: at(0, "16:30"), duration_min: 45, party_size: null, status: "pending", notes: null, created_at: ago(90), service_name: "Manicura semipermanente" },
   { id: "b3", contact_id: null, service_id: "s3", customer_name: "Lucía Romero", customer_phone: "+34633333333", scheduled_at: at(1, "10:00"), duration_min: 90, party_size: null, status: "confirmed", notes: null, created_at: ago(60), service_name: "Masaje relajante" },
   { id: "b4", contact_id: "c4", service_id: "s4", customer_name: "Diego Fernández", customer_phone: "+34644444444", scheduled_at: at(2, "12:30"), duration_min: 30, party_size: null, status: "done", notes: null, created_at: ago(2000), service_name: "Corte y peinado" },
+];
+
+export const demoContactServices: ContactService[] = [
+  { id: "cs1", contact_id: "c1", service_id: "s1", status: "contratado", notes: null, created_at: ago(200), service_name: "Limpieza facial profunda", service_price_cents: 4500, service_currency: "EUR" },
+  { id: "cs2", contact_id: "c1", service_id: "s3", status: "completado", notes: "Sesión de regalo por fidelidad.", created_at: ago(4000), service_name: "Masaje relajante", service_price_cents: 6000, service_currency: "EUR" },
+  { id: "cs3", contact_id: "c2", service_id: "s2", status: "cancelado", notes: null, created_at: ago(1000), service_name: "Manicura semipermanente", service_price_cents: 2500, service_currency: "EUR" },
 ];
 
 // ─── Cartera de clientes demo: enriquecemos algunos contactos ───

@@ -1,7 +1,7 @@
 import { supabaseAdmin, isSupabaseConfigured } from "./supabase/admin";
-import { Contact, Operation, CustomerSummary } from "./types";
+import { Contact, Operation, CustomerSummary, Opportunity, Booking, ContactService } from "./types";
 import { computeCustomerMetrics } from "./metrics";
-import { demoContacts, demoOperations } from "./demo";
+import { demoContacts, demoOperations, demoContactServices } from "./demo";
 
 export interface PortfolioAggregate {
   totalClientes: number;
@@ -46,7 +46,17 @@ async function loadContactsAndOps(): Promise<{
 }
 
 export async function getCustomers(): Promise<CustomerListResult> {
-  const { contacts, opsByContact } = await loadContactsAndOps();
+  let { contacts, opsByContact } = await loadContactsAndOps();
+
+  // En modo demo, incluir contactos temporales guardados en localStorage
+  if (!isSupabaseConfigured() && typeof window !== "undefined") {
+    try {
+      const tempContacts = JSON.parse(localStorage.getItem("temp_contacts") || "[]");
+      contacts = [...contacts, ...tempContacts].filter((c, i, arr) => arr.findIndex((x) => x.id === c.id) === i);
+    } catch (e) {
+      // Ignorar errores de localStorage
+    }
+  }
 
   const customers: CustomerSummary[] = contacts.map((contact) => ({
     contact,
@@ -73,26 +83,43 @@ export async function getCustomers(): Promise<CustomerListResult> {
 export async function getCustomer(id: string): Promise<{
   contact: Contact;
   operations: Operation[];
+  opportunities: Opportunity[];
+  bookings: Booking[];
+  contractedServices: ContactService[];
 } | null> {
   if (!isSupabaseConfigured()) {
     const contact = demoContacts.find((c) => c.id === id);
     if (!contact) return null;
     return {
       contact,
-      operations: demoOperations
-        .filter((o) => o.contact_id === id)
-        .sort((a, b) => b.date.localeCompare(a.date)),
+      operations: demoOperations.filter((o) => o.contact_id === id).sort((a, b) => b.date.localeCompare(a.date)),
+      opportunities: [],
+      bookings: [],
+      contractedServices: demoContactServices.filter((cs) => cs.contact_id === id),
     };
   }
   const sb = supabaseAdmin();
   const { data: contact } = await sb.from("contacts").select("*").eq("id", id).single();
   if (!contact) return null;
-  const { data: ops } = await sb
-    .from("operations")
-    .select("*")
-    .eq("contact_id", id)
-    .order("date", { ascending: false });
-  return { contact: contact as Contact, operations: (ops ?? []) as Operation[] };
+  const [{ data: ops }, { data: opps }, { data: bks }, { data: css }] = await Promise.all([
+    sb.from("operations").select("*").eq("contact_id", id).order("date", { ascending: false }),
+    sb.from("opportunities").select("*").eq("contact_id", id).order("updated_at", { ascending: false }),
+    sb.from("bookings").select("*, service:services(name)").eq("contact_id", id).order("scheduled_at", { ascending: false }),
+    sb.from("contact_services").select("*, service:services(name, price_cents, currency)").eq("contact_id", id).order("created_at", { ascending: false }),
+  ]);
+  const bookings = ((bks ?? []) as (Booking & { service?: { name?: string } | null })[]).map(
+    (b) => ({ ...b, service_name: b.service?.name ?? null })
+  );
+  const contractedServices = ((css ?? []) as (ContactService & { service?: { name?: string; price_cents?: number; currency?: string } | null })[]).map(
+    (cs) => ({ ...cs, service_name: cs.service?.name ?? null, service_price_cents: cs.service?.price_cents ?? null, service_currency: cs.service?.currency ?? null })
+  );
+  return {
+    contact: contact as Contact,
+    operations: (ops ?? []) as Operation[],
+    opportunities: (opps ?? []) as Opportunity[],
+    bookings,
+    contractedServices,
+  };
 }
 
 export async function createContact(input: {
@@ -104,6 +131,22 @@ export async function createContact(input: {
   notes?: string | null;
   ad_source?: string | null;
 }): Promise<Contact> {
+  if (!isSupabaseConfigured()) {
+    return {
+      id: `tmp-${Date.now()}`,
+      name: input.name,
+      phone: input.phone || null,
+      email: input.email || null,
+      company: input.company || null,
+      tags: input.tags ?? [],
+      notes: input.notes || null,
+      ad_source: input.ad_source || "Manual",
+      ctwa_clid: null,
+      blocked: false,
+      bot_enabled: true,
+      created_at: new Date().toISOString(),
+    };
+  }
   const sb = supabaseAdmin();
   const { data, error } = await sb
     .from("contacts")

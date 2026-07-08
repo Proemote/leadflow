@@ -1,40 +1,107 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Contact, Operation, CustomerMetrics, OperationStatus } from "@/lib/types";
+import { Contact, Operation, CustomerMetrics, OperationStatus, Opportunity, Booking, BookingStatus, ContactService, ContactServiceStatus, Service, BusinessConfig } from "@/lib/types";
 import { CUSTOMER_STATUS_META } from "@/lib/metrics";
 import { formatPrice } from "@/lib/money";
+import { formatSchedule } from "@/lib/format";
 import { initials } from "@/lib/format";
-import { IconBack, IconPlus } from "@/components/icons";
+import { IconBack, IconPlus, IconTrash } from "@/components/icons";
 
 const OP_STATUS: Record<OperationStatus, { label: string; cls: string }> = {
   completed: { label: "Completada", cls: "chip-hot" },
-  pending: { label: "Pendiente", cls: "chip-warm" },
-  refunded: { label: "Reembolsada", cls: "" },
+  pending:   { label: "Pendiente",  cls: "chip-warm" },
+  refunded:  { label: "Reembolsada", cls: "" },
 };
+
+const BOOKING_STATUS: Record<BookingStatus, { label: string; cls: string }> = {
+  pending:   { label: "Pendiente",  cls: "chip-warm" },
+  confirmed: { label: "Confirmada", cls: "chip-cold" },
+  done:      { label: "Realizada",  cls: "chip-hot"  },
+  cancelled: { label: "Cancelada",  cls: ""           },
+};
+
+const CS_STATUS: Record<ContactServiceStatus, { label: string; cls: string }> = {
+  contratado: { label: "Contratado", cls: "chip-warm" },
+  completado: { label: "Completado", cls: "chip-hot" },
+  cancelado:  { label: "Cancelado",  cls: "" },
+};
+
+const STAGE_COLOR: Record<string, string> = { Ganado: "#34d399", Perdido: "#fb7185" };
+function stageAccent(s: string) { return STAGE_COLOR[s] ?? "#a855f7"; }
 
 function fecha(iso: string): string {
   return new Date(iso).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 export function CustomerDetail({
-  contact,
+  contact: initialContact,
   operations: initialOps,
+  opportunities,
+  bookings: initialBookings,
+  contractedServices: initialContractedServices,
+  services,
+  businessConfig,
   metrics: initialMetrics,
   demo,
 }: {
   contact: Contact;
   operations: Operation[];
+  opportunities: Opportunity[];
+  bookings: Booking[];
+  contractedServices: ContactService[];
+  services: Service[];
+  businessConfig: BusinessConfig;
   metrics: CustomerMetrics;
   demo: boolean;
 }) {
   const router = useRouter();
+  const [contact, setContact] = useState(initialContact);
   const [operations] = useState(initialOps);
+  const [bookings, setBookings] = useState(initialBookings);
+  const [contractedServices, setContractedServices] = useState(initialContractedServices);
   const [showForm, setShowForm] = useState(false);
+  const [showEditContact, setShowEditContact] = useState(false);
+  const [showAddBooking, setShowAddBooking] = useState(false);
+  const [showAddService, setShowAddService] = useState(false);
   const meta = CUSTOMER_STATUS_META[initialMetrics.estado];
   const m = initialMetrics;
+
+  async function patchBookingStatus(b: Booking, status: BookingStatus) {
+    setBookings((arr) => arr.map((x) => (x.id === b.id ? { ...x, status } : x)));
+    if (!demo) {
+      await fetch(`/api/bookings/${b.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+    }
+  }
+
+  async function removeBooking(b: Booking) {
+    if (!confirm("¿Eliminar esta cita? Esta acción no se puede deshacer.")) return;
+    setBookings((arr) => arr.filter((x) => x.id !== b.id));
+    if (!demo) await fetch(`/api/bookings/${b.id}`, { method: "DELETE" });
+  }
+
+  async function patchServiceStatus(cs: ContactService, status: ContactServiceStatus) {
+    setContractedServices((arr) => arr.map((x) => (x.id === cs.id ? { ...x, status } : x)));
+    if (!demo) {
+      await fetch(`/api/contact-services/${cs.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+    }
+  }
+
+  async function removeService(cs: ContactService) {
+    if (!confirm("¿Eliminar este servicio contratado?")) return;
+    setContractedServices((arr) => arr.filter((x) => x.id !== cs.id));
+    if (!demo) await fetch(`/api/contact-services/${cs.id}`, { method: "DELETE" });
+  }
 
   return (
     <div className="space-y-6">
@@ -63,10 +130,25 @@ export function CustomerDetail({
             </div>
           )}
         </div>
-        <button className="btn-primary flex items-center gap-2" onClick={() => setShowForm((v) => !v)}>
-          <IconPlus width={16} height={16} /> Añadir operación
-        </button>
+        <div className="flex gap-3 flex-wrap">
+          <button className="btn-ghost" onClick={() => setShowEditContact((v) => !v)}>Editar contacto</button>
+          <button className="btn-primary flex items-center gap-2" onClick={() => setShowForm((v) => !v)}>
+            <IconPlus width={16} height={16} /> Añadir operación
+          </button>
+        </div>
       </div>
+
+      {showEditContact && (
+        <EditContactForm
+          contact={contact}
+          demo={demo}
+          onSaved={(c) => {
+            setContact(c);
+            setShowEditContact(false);
+          }}
+          onCancel={() => setShowEditContact(false)}
+        />
+      )}
 
       {/* Métricas */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -77,10 +159,156 @@ export function CustomerDetail({
         <Metric label="Recencia" value={m.recenciaDias == null ? "—" : m.recenciaDias === 0 ? "hoy" : `hace ${m.recenciaDias} d`} sub={m.nOps ? "última compra" : undefined} />
         <Metric label="Frecuencia media" value={m.frecuenciaMediaDias == null ? "—" : `${m.frecuenciaMediaDias} d`} sub={m.frecuenciaMediaDias == null ? "≥2 compras" : "entre compras"} />
         <Metric label="Recurrencia" value={m.nOps ? `${Math.round(m.tasaRecurrencia * 100)}%` : "—"} />
-        <Metric label="Estado" value={meta.label} />
+        <Metric label="Citas" value={String(bookings.length)} sub={bookings.filter(b => b.status === "done").length > 0 ? `${bookings.filter(b => b.status === "done").length} realizadas` : undefined} />
       </div>
 
       {showForm && <AddOperationForm contactId={contact.id} demo={demo} onDone={() => { setShowForm(false); router.refresh(); }} />}
+
+      {/* Oportunidades */}
+      {opportunities.length > 0 && (
+        <div className="panel p-5">
+          <h3 className="font-semibold text-violet-50 mb-3">Oportunidades</h3>
+          <div className="divide-y divide-[var(--color-edge-soft)]">
+            {opportunities.map((o) => (
+              <div key={o.id} className="flex items-center gap-3 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-violet-50 truncate">{o.title}</div>
+                  <div className="text-[11px] text-violet-300/60">{o.stage} · {o.probability}% · {o.expected_close ? `Cierre: ${fecha(o.expected_close + "T12:00:00")}` : "sin fecha"}</div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="size-2 rounded-full" style={{ background: stageAccent(o.stage) }} />
+                  <span className="text-sm font-semibold text-violet-100">{formatPrice(o.value_cents)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Servicios contratados */}
+      <div className="panel p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-violet-50">Servicios contratados</h3>
+          <button className="btn-primary flex items-center gap-2 py-1.5 px-3 text-sm" onClick={() => setShowAddService((v) => !v)}>
+            <IconPlus width={14} height={14} /> Añadir
+          </button>
+        </div>
+        {showAddService && (
+          <AddContractedServiceForm
+            contactId={contact.id}
+            services={services}
+            demo={demo}
+            onCreated={(cs) => {
+              setContractedServices((arr) => [cs, ...arr]);
+              setShowAddService(false);
+            }}
+            onCancel={() => setShowAddService(false)}
+          />
+        )}
+        {contractedServices.length === 0 ? (
+          <p className="text-sm text-violet-300/50 py-6 text-center">Sin servicios contratados.</p>
+        ) : (
+          <div className="divide-y divide-[var(--color-edge-soft)]">
+            {contractedServices.map((cs) => {
+              const meta = CS_STATUS[cs.status];
+              return (
+                <div key={cs.id} className="flex items-center gap-3 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-violet-50 truncate">{cs.service_name ?? "Servicio"}</div>
+                    <div className="text-[11px] text-violet-300/60">
+                      {cs.service_price_cents ? formatPrice(cs.service_price_cents, cs.service_currency) : ""} {cs.notes ? `· ${cs.notes}` : ""}
+                    </div>
+                  </div>
+                  <span className={`chip ${meta.cls}`}>{meta.label}</span>
+                  <div className="flex gap-1.5">
+                    <select
+                      value={cs.status}
+                      onChange={(e) => patchServiceStatus(cs, e.target.value as ContactServiceStatus)}
+                      className="text-[11px] bg-violet-500/10 border border-[var(--color-edge)] rounded px-1.5 py-0.5 text-violet-300"
+                    >
+                      {["contratado", "completado", "cancelado"].map((s) => (
+                        <option key={s} value={s}>
+                          {CS_STATUS[s as ContactServiceStatus].label}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      className="py-1 px-1.5 text-xs rounded border border-rose-500/30 text-rose-300 hover:bg-rose-500/10"
+                      onClick={() => removeService(cs)}
+                      title="Eliminar"
+                    >
+                      <IconTrash width={13} height={13} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Citas / Reservas */}
+      <div className="panel p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-violet-50">Citas y reservas</h3>
+          <button className="btn-primary flex items-center gap-2 py-1.5 px-3 text-sm" onClick={() => setShowAddBooking((v) => !v)}>
+            <IconPlus width={14} height={14} /> Añadir
+          </button>
+        </div>
+        {showAddBooking && (
+          <AddBookingForm
+            contact={contact}
+            services={services}
+            businessConfig={businessConfig}
+            demo={demo}
+            onCreated={(b) => {
+              setBookings((arr) => [b, ...arr]);
+              setShowAddBooking(false);
+            }}
+            onCancel={() => setShowAddBooking(false)}
+          />
+        )}
+        {bookings.length === 0 ? (
+          <p className="text-sm text-violet-300/50 py-6 text-center">Sin citas pendientes.</p>
+        ) : (
+          <div className="divide-y divide-[var(--color-edge-soft)]">
+            {bookings.map((b) => {
+              const s = BOOKING_STATUS[b.status];
+              return (
+                <div key={b.id} className="flex items-center gap-3 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-violet-50 truncate">{b.service_name ?? b.notes ?? "Cita"}</div>
+                    <div className="text-[11px] text-violet-300/60">
+                      {b.scheduled_at
+                        ? new Date(b.scheduled_at).toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+                        : "Sin fecha"}
+                    </div>
+                  </div>
+                  <span className={`chip ${s.cls}`}>{s.label}</span>
+                  <div className="flex gap-1.5">
+                    {b.status === "pending" && (
+                      <button className="btn-ghost py-1 px-2.5 text-xs" onClick={() => patchBookingStatus(b, "confirmed")}>Confirmar</button>
+                    )}
+                    {(b.status === "pending" || b.status === "confirmed") && (
+                      <>
+                        <button className="btn-ghost py-1 px-2.5 text-xs" onClick={() => patchBookingStatus(b, "done")}>Hecha</button>
+                        <button className="py-1 px-2.5 text-xs rounded border border-rose-500/30 text-rose-300 hover:bg-rose-500/10" onClick={() => patchBookingStatus(b, "cancelled")}>Cancelar</button>
+                      </>
+                    )}
+                    <button
+                      className="py-1 px-1.5 text-xs rounded border border-rose-500/30 text-rose-300 hover:bg-rose-500/10"
+                      onClick={() => removeBooking(b)}
+                      title="Eliminar"
+                    >
+                      <IconTrash width={13} height={13} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Operaciones */}
       <div className="panel p-5">
@@ -159,5 +387,360 @@ function AddOperationForm({ contactId, demo, onDone }: { contactId: string; demo
         <button className="btn-ghost" onClick={onDone}>Cancelar</button>
       </div>
     </div>
+  );
+}
+
+function EditContactForm({ contact, demo, onSaved, onCancel }: { contact: Contact; demo: boolean; onSaved: (c: Contact) => void; onCancel: () => void }) {
+  const [f, setF] = useState({
+    name: contact.name ?? "",
+    phone: contact.phone ?? "",
+    email: contact.email ?? "",
+    company: contact.company ?? "",
+    notes: contact.notes ?? "",
+    tags: (contact.tags ?? []).join(", "),
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setBusy(true);
+    setError(null);
+    const patch = {
+      name: f.name.trim() || null,
+      phone: f.phone.trim() || null,
+      email: f.email.trim() || null,
+      company: f.company.trim() || null,
+      notes: f.notes.trim() || null,
+      tags: f.tags.split(",").map((t) => t.trim()).filter(Boolean),
+    };
+
+    if (demo) {
+      onSaved({ ...contact, ...patch });
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/customers/${contact.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? "Error");
+      onSaved(j.contact);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="panel p-6 space-y-4">
+      <h3 className="font-semibold text-violet-50">Editar contacto</h3>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <Field label="Nombre">
+          <input className="input" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
+        </Field>
+        <Field label="Teléfono">
+          <input className="input" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} />
+        </Field>
+        <Field label="Email">
+          <input className="input" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
+        </Field>
+        <Field label="Empresa">
+          <input className="input" value={f.company} onChange={(e) => setF({ ...f, company: e.target.value })} />
+        </Field>
+      </div>
+      <Field label="Etiquetas (separadas por comas)">
+        <input className="input" value={f.tags} onChange={(e) => setF({ ...f, tags: e.target.value })} placeholder="VIP, Recurrente" />
+      </Field>
+      <Field label="Notas">
+        <textarea className="input" value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} />
+      </Field>
+      {demo && <p className="text-xs text-amber-300/80">Modo demo: no se guardará.</p>}
+      {error && <p className="text-sm text-rose-400">{error}</p>}
+      <div className="flex gap-3">
+        <button className="btn-primary" onClick={save} disabled={busy}>{busy ? "Guardando…" : "Guardar cambios"}</button>
+        <button className="btn-ghost" onClick={onCancel}>Cancelar</button>
+      </div>
+    </div>
+  );
+}
+
+function AddContractedServiceForm({
+  contactId,
+  services,
+  demo,
+  onCreated,
+  onCancel,
+}: {
+  contactId: string;
+  services: Service[];
+  demo: boolean;
+  onCreated: (cs: ContactService) => void;
+  onCancel: () => void;
+}) {
+  const [serviceId, setServiceId] = useState(services[0]?.id ?? "");
+  const [status, setStatus] = useState<ContactServiceStatus>("contratado");
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const service = services.find((s) => s.id === serviceId);
+
+  async function save() {
+    if (!serviceId) return setError("Elige un servicio.");
+    setBusy(true);
+    setError(null);
+
+    if (demo) {
+      onCreated({
+        id: `tmp-${Date.now()}`,
+        contact_id: contactId,
+        service_id: serviceId,
+        status,
+        notes: notes.trim() || null,
+        created_at: new Date().toISOString(),
+        service_name: service?.name ?? null,
+        service_price_cents: service?.price_cents ?? null,
+        service_currency: service?.currency ?? null,
+      });
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/contact-services", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contact_id: contactId,
+          service_id: serviceId,
+          status,
+          notes: notes.trim() || null,
+        }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? "Error");
+      onCreated(j.contactService);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="panel p-6 space-y-4 mb-4">
+      <h4 className="font-semibold text-violet-50 text-sm">Nuevo servicio contratado</h4>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <Field label="Servicio">
+          <select className="input" value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
+            {services.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} · {formatPrice(s.price_cents, s.currency)}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Estado">
+          <select className="input" value={status} onChange={(e) => setStatus(e.target.value as ContactServiceStatus)}>
+            <option value="contratado">Contratado</option>
+            <option value="completado">Completado</option>
+            <option value="cancelado">Cancelado</option>
+          </select>
+        </Field>
+      </div>
+      <Field label="Notas (opcional)">
+        <input className="input" value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </Field>
+      {demo && <p className="text-xs text-amber-300/80">Modo demo: no se guardará.</p>}
+      {error && <p className="text-sm text-rose-400">{error}</p>}
+      <div className="flex gap-3">
+        <button className="btn-primary" onClick={save} disabled={busy}>{busy ? "Guardando…" : "Añadir"}</button>
+        <button className="btn-ghost" onClick={onCancel}>Cancelar</button>
+      </div>
+    </div>
+  );
+}
+
+function AddBookingForm({
+  contact,
+  services,
+  businessConfig,
+  demo,
+  onCreated,
+  onCancel,
+}: {
+  contact: Contact;
+  services: Service[];
+  businessConfig: BusinessConfig;
+  demo: boolean;
+  onCreated: (b: Booking) => void;
+  onCancel: () => void;
+}) {
+  const isAppt = businessConfig.businessType === "appointments";
+  const [serviceId, setServiceId] = useState(services[0]?.id ?? "");
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [time, setTime] = useState("");
+  const [party, setParty] = useState("");
+  const [notes, setNotes] = useState("");
+  const [slots, setSlots] = useState<string[]>([]);
+  const [closed, setClosed] = useState(false);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const service = services.find((s) => s.id === serviceId);
+  const duration = service?.duration_min ?? 30;
+
+  const loadSlots = useCallback(async () => {
+    if (!isAppt || !date) return;
+    setLoadingSlots(true);
+    setTime("");
+    try {
+      const res = await fetch(`/api/availability?date=${date}&duration=${duration}`);
+      const j = await res.json();
+      setSlots(j.slots ?? []);
+      setClosed(Boolean(j.closed));
+    } finally {
+      setLoadingSlots(false);
+    }
+  }, [isAppt, date, duration]);
+
+  useEffect(() => {
+    loadSlots();
+  }, [loadSlots]);
+
+  async function save() {
+    if (!time) return setError(isAppt ? "Elige una franja horaria." : "Indica la hora.");
+    setBusy(true);
+    setError(null);
+
+    const scheduled_at = `${date}T${time}:00`;
+    const payload = {
+      contact_id: contact.id,
+      service_id: serviceId || null,
+      customer_name: contact.name ?? "Cliente",
+      customer_phone: contact.phone || null,
+      scheduled_at,
+      duration_min: isAppt ? duration : null,
+      party_size: !isAppt && party ? parseInt(party, 10) : null,
+      notes: notes.trim() || null,
+    };
+
+    if (demo) {
+      onCreated({
+        id: `tmp-${Date.now()}`,
+        contact_id: contact.id,
+        service_id: serviceId || null,
+        customer_name: contact.name ?? "Cliente",
+        customer_phone: contact.phone || null,
+        scheduled_at,
+        duration_min: isAppt ? duration : null,
+        party_size: !isAppt && party ? parseInt(party, 10) : null,
+        status: "pending",
+        notes: notes.trim() || null,
+        created_at: new Date().toISOString(),
+        service_name: service?.name ?? null,
+      });
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? "Error al crear");
+      onCreated({ ...j.booking, service_name: service?.name ?? null });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="panel p-6 space-y-4 mb-4">
+      <h4 className="font-semibold text-violet-50 text-sm">Nueva {isAppt ? "cita" : "reserva"}</h4>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <Field label="Servicio">
+          <select className="input" value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
+            {services.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} · {formatPrice(s.price_cents, s.currency)}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Fecha">
+          <input type="date" className="input" value={date} min={new Date().toISOString().slice(0, 10)} onChange={(e) => setDate(e.target.value)} />
+        </Field>
+      </div>
+
+      {isAppt ? (
+        <div>
+          <span className="text-xs text-violet-300/70 mb-1.5 block">Franja disponible</span>
+          {loadingSlots ? (
+            <p className="text-sm text-violet-300/50">Calculando disponibilidad…</p>
+          ) : closed ? (
+            <p className="text-sm text-amber-300/80">Cerrado ese día. Elige otra fecha.</p>
+          ) : slots.length === 0 ? (
+            <p className="text-sm text-amber-300/80">No quedan franjas libres para este servicio ese día.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {slots.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setTime(s)}
+                  className="px-3 py-1.5 rounded-lg text-sm border transition"
+                  style={
+                    time === s
+                      ? { background: "linear-gradient(180deg,#8b5cf6,#6d28d9)", borderColor: "rgba(168,85,247,0.5)", color: "#fff" }
+                      : { background: "rgba(124,58,237,0.08)", borderColor: "var(--color-edge)", color: "#cbbfe6" }
+                  }
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="grid sm:grid-cols-2 gap-3">
+          <Field label="Hora">
+            <input type="time" className="input" value={time} onChange={(e) => setTime(e.target.value)} />
+          </Field>
+          <Field label="Nº de personas">
+            <input className="input" value={party} onChange={(e) => setParty(e.target.value.replace(/\D/g, ""))} placeholder="2" inputMode="numeric" />
+          </Field>
+        </div>
+      )}
+
+      <Field label="Notas (opcional)">
+        <input className="input" value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </Field>
+
+      {demo && <p className="text-xs text-amber-300/80">Modo demo: no se guardará.</p>}
+      {error && <p className="text-sm text-rose-400">{error}</p>}
+      <div className="flex gap-3">
+        <button className="btn-primary" onClick={save} disabled={busy}>
+          {busy ? "Guardando…" : `Crear ${isAppt ? "cita" : "reserva"}`}
+        </button>
+        <button className="btn-ghost" onClick={onCancel}>Cancelar</button>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="text-xs text-violet-300/70 mb-1.5 block">{label}</span>
+      {children}
+    </label>
   );
 }

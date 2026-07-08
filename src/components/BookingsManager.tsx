@@ -4,21 +4,40 @@ import { useState, useEffect, useCallback } from "react";
 import { Booking, BookingStatus, BusinessConfig, BusinessType, Service } from "@/lib/types";
 import { formatSchedule } from "@/lib/format";
 import { formatPrice } from "@/lib/money";
-import { IconPlus, IconCalendar } from "@/components/icons";
+import { IconPlus, IconCalendar, IconTrash } from "@/components/icons";
 import { MonthCalendar } from "@/components/MonthCalendar";
 
 const DAY_NAMES = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
 const STATUS_META: Record<BookingStatus, { label: string; cls: string }> = {
-  pending: { label: "Pendiente", cls: "chip-warm" },
+  pending:   { label: "Pendiente",  cls: "chip-warm" },
   confirmed: { label: "Confirmada", cls: "chip-cold" },
-  done: { label: "Realizada", cls: "chip-hot" },
-  cancelled: { label: "Cancelada", cls: "" },
+  done:      { label: "Realizada",  cls: "chip-hot"  },
+  cancelled: { label: "Cancelada",  cls: ""           },
 };
+
+const HOURS = Array.from({ length: 14 }, (_, i) => i + 8); // 08:00..21:00
 
 function todayKey(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function addDays(key: string, delta: number): string {
+  const d = new Date(`${key}T12:00:00`);
+  d.setDate(d.getDate() + delta);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function dayLabel(key: string): string {
+  return new Date(`${key}T12:00:00`).toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
+}
+
+function bookingMinute(b: Booking): number {
+  if (!b.scheduled_at) return 0;
+  const [, time] = b.scheduled_at.split("T");
+  const [h, m] = time.split(":");
+  return parseInt(h) * 60 + parseInt(m);
 }
 
 export function BookingsManager({
@@ -36,7 +55,8 @@ export function BookingsManager({
   const [config, setConfig] = useState<BusinessConfig>(initialConfig);
   const [showForm, setShowForm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [view, setView] = useState<"list" | "calendar">("list");
+  const [view, setView] = useState<"agenda" | "calendar">("agenda");
+  const [agendaDate, setAgendaDate] = useState(todayKey());
 
   const isAppt = config.businessType === "appointments";
 
@@ -51,10 +71,19 @@ export function BookingsManager({
     }
   }
 
-  const upcoming = bookings.filter(
-    (b) => b.status !== "cancelled" && b.status !== "done"
-  );
-  const past = bookings.filter((b) => b.status === "cancelled" || b.status === "done");
+  async function removeBooking(b: Booking) {
+    if (!confirm(`¿Eliminar la cita de ${b.customer_name}? Esta acción no se puede deshacer.`)) return;
+    setBookings((arr) => arr.filter((x) => x.id !== b.id));
+    if (!demo) await fetch(`/api/bookings/${b.id}`, { method: "DELETE" });
+  }
+
+  const upcoming = bookings.filter((b) => b.status !== "cancelled" && b.status !== "done");
+  const past     = bookings.filter((b) => b.status === "cancelled" || b.status === "done");
+
+  // Citas del día actual de la vista agenda
+  const agendaBookings = bookings
+    .filter((b) => b.scheduled_at?.startsWith(agendaDate))
+    .sort((a, b) => bookingMinute(a) - bookingMinute(b));
 
   return (
     <div className="space-y-5">
@@ -63,9 +92,8 @@ export function BookingsManager({
           {upcoming.length} activas · {bookings.length} en total
         </p>
         <div className="flex flex-wrap gap-2">
-          {/* Conmutador de vista */}
           <div className="flex rounded-xl border border-[var(--color-edge-soft)] overflow-hidden">
-            {(["list", "calendar"] as const).map((v) => (
+            {(["agenda", "calendar"] as const).map((v) => (
               <button
                 key={v}
                 onClick={() => setView(v)}
@@ -76,12 +104,12 @@ export function BookingsManager({
                     : { color: "#b3aac6" }
                 }
               >
-                {v === "list" ? "Lista" : "Calendario"}
+                {v === "agenda" ? "Agenda" : "Calendario"}
               </button>
             ))}
           </div>
           <button className="btn-ghost flex items-center gap-2" onClick={() => setShowSettings((v) => !v)}>
-            <IconCalendar width={16} height={16} /> Ajustes de la agenda
+            <IconCalendar width={16} height={16} /> Ajustes
           </button>
           <button className="btn-primary flex items-center gap-2" onClick={() => setShowForm((v) => !v)}>
             <IconPlus width={16} height={16} /> Nueva {isAppt ? "cita" : "reserva"}
@@ -99,10 +127,7 @@ export function BookingsManager({
         <AgendaSettings
           config={config}
           demo={demo}
-          onSave={(c) => {
-            setConfig(c);
-            setShowSettings(false);
-          }}
+          onSave={(c) => { setConfig(c); setShowSettings(false); }}
         />
       )}
 
@@ -111,10 +136,7 @@ export function BookingsManager({
           services={services}
           config={config}
           demo={demo}
-          onCreated={(b) => {
-            setBookings((arr) => [b, ...arr]);
-            setShowForm(false);
-          }}
+          onCreated={(b) => { setBookings((arr) => [b, ...arr]); setShowForm(false); }}
           onCancel={() => setShowForm(false)}
         />
       )}
@@ -122,86 +144,226 @@ export function BookingsManager({
       {view === "calendar" ? (
         <MonthCalendar bookings={bookings} />
       ) : (
-        <>
-          <BookingGroup title={isAppt ? "Próximas citas" : "Reservas activas"} items={upcoming} onPatch={patchStatus} isAppt={isAppt} />
-          {past.length > 0 && (
-            <BookingGroup title="Historial" items={past} onPatch={patchStatus} isAppt={isAppt} muted />
-          )}
-          {bookings.length === 0 && (
-            <div className="panel p-10 text-center text-violet-300/50">
-              Todavía no hay {isAppt ? "citas" : "reservas"}.
-            </div>
-          )}
-        </>
+        <AgendaView
+          date={agendaDate}
+          bookings={agendaBookings}
+          past={past}
+          upcoming={upcoming}
+          isAppt={isAppt}
+          onPrev={() => setAgendaDate((d) => addDays(d, -1))}
+          onNext={() => setAgendaDate((d) => addDays(d, 1))}
+          onToday={() => setAgendaDate(todayKey())}
+          onPatch={patchStatus}
+          onDelete={removeBooking}
+        />
       )}
     </div>
   );
 }
 
-function BookingGroup({
-  title,
-  items,
-  onPatch,
-  isAppt,
-  muted,
+// ─── Vista de Agenda (timeline por día) ────────────────────────────
+
+function AgendaView({
+  date, bookings, past, upcoming, isAppt,
+  onPrev, onNext, onToday, onPatch, onDelete,
 }: {
-  title: string;
-  items: Booking[];
-  onPatch: (b: Booking, s: BookingStatus) => void;
+  date: string;
+  bookings: Booking[];
+  past: Booking[];
+  upcoming: Booking[];
   isAppt: boolean;
-  muted?: boolean;
+  onPrev: () => void;
+  onNext: () => void;
+  onToday: () => void;
+  onPatch: (b: Booking, s: BookingStatus) => void;
+  onDelete: (b: Booking) => void;
 }) {
-  if (items.length === 0) return null;
+  const isToday = date === todayKey();
+
   return (
-    <div className="panel p-5">
-      <h3 className="text-sm uppercase tracking-wider text-violet-300/60 mb-3">{title}</h3>
-      <div className="divide-y divide-[var(--color-edge-soft)]">
-        {items.map((b) => {
-          const meta = STATUS_META[b.status];
-          return (
-            <div key={b.id} className={`flex flex-wrap items-center gap-3 py-3 ${muted ? "opacity-60" : ""}`}>
-              <div className="min-w-0 flex-1">
-                <div className="font-medium text-violet-50">{b.customer_name}</div>
-                <div className="text-xs text-violet-300/60">
-                  {b.service_name ?? b.notes ?? "Cita"}
-                  {b.party_size ? ` · ${b.party_size} pers.` : ""}
-                  {b.customer_phone ? ` · ${b.customer_phone}` : ""}
+    <div className="space-y-4">
+      {/* Navegación de día */}
+      <div className="panel p-4">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <button className="btn-ghost py-1.5 px-3" onClick={onPrev}>←</button>
+            <button className="btn-ghost py-1.5 px-3 text-xs" onClick={onToday}>Hoy</button>
+            <button className="btn-ghost py-1.5 px-3" onClick={onNext}>→</button>
+          </div>
+          <h3 className="font-semibold text-violet-50 capitalize text-sm sm:text-base">{dayLabel(date)}</h3>
+          {isToday && <span className="chip chip-hot text-[10px]">Hoy</span>}
+        </div>
+
+        {/* Timeline de horas */}
+        <div className="relative overflow-y-auto max-h-[520px] pr-1">
+          {HOURS.map((h) => {
+            const hStr = String(h).padStart(2, "0");
+            const slotBookings = bookings.filter((b) => {
+              if (!b.scheduled_at) return false;
+              const bMin = bookingMinute(b);
+              return bMin >= h * 60 && bMin < (h + 1) * 60;
+            });
+            return (
+              <div key={h} className="flex gap-3 min-h-[56px]">
+                <div className="w-12 shrink-0 text-[11px] text-violet-300/40 pt-1 text-right font-mono">
+                  {hStr}:00
                 </div>
-                {b.service_name && b.notes && (
-                  <div className="text-xs text-violet-300/40 mt-0.5">“{b.notes}”</div>
-                )}
-              </div>
-              <div className="text-sm text-violet-100 whitespace-nowrap">
-                {isAppt || b.scheduled_at ? formatSchedule(b.scheduled_at) : "—"}
-              </div>
-              <span className={`chip ${meta.cls}`}>{meta.label}</span>
-              {!muted && (
-                <div className="flex gap-1.5">
-                  {b.status === "pending" && (
-                    <button className="btn-ghost py-1 px-2.5 text-xs" onClick={() => onPatch(b, "confirmed")}>Confirmar</button>
-                  )}
-                  {(b.status === "pending" || b.status === "confirmed") && (
-                    <>
-                      <button className="btn-ghost py-1 px-2.5 text-xs" onClick={() => onPatch(b, "done")}>Hecha</button>
-                      <button className="py-1 px-2.5 text-xs rounded-lg border border-rose-500/30 text-rose-300 hover:bg-rose-500/10" onClick={() => onPatch(b, "cancelled")}>Cancelar</button>
-                    </>
+                <div className="flex-1 border-t border-[var(--color-edge-soft)] pt-1 pb-1">
+                  {slotBookings.length === 0 ? (
+                    <div className="h-full" />
+                  ) : (
+                    <div className="space-y-1">
+                      {slotBookings.map((b) => (
+                        <AgendaEvent key={b.id} booking={b} isAppt={isAppt} onPatch={onPatch} onDelete={onDelete} />
+                      ))}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
-          );
-        })}
+              </div>
+            );
+          })}
+        </div>
+
+        {bookings.length === 0 && (
+          <p className="text-sm text-violet-300/40 text-center py-6">Sin citas este día.</p>
+        )}
+      </div>
+
+      {/* Historial con eliminar/archivar */}
+      {past.length > 0 && (
+        <div className="panel p-5">
+          <h3 className="text-sm uppercase tracking-wider text-violet-300/60 mb-3">Historial</h3>
+          <div className="divide-y divide-[var(--color-edge-soft)]">
+            {past.map((b) => {
+              const meta = STATUS_META[b.status];
+              return (
+                <div key={b.id} className="flex flex-wrap items-center gap-3 py-3 opacity-70">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-violet-50">{b.customer_name}</div>
+                    <div className="text-xs text-violet-300/60">
+                      {b.service_name ?? b.notes ?? "Cita"}
+                      {b.customer_phone ? ` · ${b.customer_phone}` : ""}
+                      {b.scheduled_at ? ` · ${formatSchedule(b.scheduled_at)}` : ""}
+                    </div>
+                  </div>
+                  <span className={`chip ${meta.cls}`}>{meta.label}</span>
+                  <div className="flex gap-1.5">
+                    {b.status === "cancelled" && (
+                      <button
+                        className="py-1 px-2.5 text-xs rounded-lg border border-violet-500/30 text-violet-300 hover:bg-violet-500/10"
+                        onClick={() => onPatch(b, "pending")}
+                      >
+                        Restaurar
+                      </button>
+                    )}
+                    <button
+                      className="py-1 px-2.5 text-xs rounded-lg border border-rose-500/30 text-rose-300 hover:bg-rose-500/10"
+                      onClick={() => onDelete(b)}
+                      title="Eliminar"
+                    >
+                      <IconTrash width={13} height={13} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Próximas citas si no hay nada en el día seleccionado */}
+      {upcoming.length > 0 && (
+        <div className="panel p-5">
+          <h3 className="text-sm uppercase tracking-wider text-violet-300/60 mb-3">
+            {isAppt ? "Próximas citas" : "Reservas activas"}
+          </h3>
+          <div className="divide-y divide-[var(--color-edge-soft)]">
+            {upcoming.slice(0, 8).map((b) => {
+              const meta = STATUS_META[b.status];
+              return (
+                <div key={b.id} className="flex flex-wrap items-center gap-3 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-violet-50">{b.customer_name}</div>
+                    <div className="text-xs text-violet-300/60">
+                      {b.service_name ?? b.notes ?? "Cita"}
+                      {b.customer_phone ? ` · ${b.customer_phone}` : ""}
+                    </div>
+                  </div>
+                  <div className="text-sm text-violet-100 whitespace-nowrap">
+                    {b.scheduled_at ? formatSchedule(b.scheduled_at) : "—"}
+                  </div>
+                  <span className={`chip ${meta.cls}`}>{meta.label}</span>
+                  <div className="flex gap-1.5">
+                    {b.status === "pending" && (
+                      <button className="btn-ghost py-1 px-2.5 text-xs" onClick={() => onPatch(b, "confirmed")}>Confirmar</button>
+                    )}
+                    {(b.status === "pending" || b.status === "confirmed") && (
+                      <>
+                        <button className="btn-ghost py-1 px-2.5 text-xs" onClick={() => onPatch(b, "done")}>Hecha</button>
+                        <button className="py-1 px-2.5 text-xs rounded-lg border border-rose-500/30 text-rose-300 hover:bg-rose-500/10" onClick={() => onPatch(b, "cancelled")}>Cancelar</button>
+                      </>
+                    )}
+                    <button
+                      className="py-1 px-2 text-xs rounded-lg border border-rose-500/30 text-rose-300 hover:bg-rose-500/10"
+                      onClick={() => onDelete(b)}
+                      title="Eliminar"
+                    >
+                      <IconTrash width={13} height={13} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AgendaEvent({ booking: b, isAppt, onPatch, onDelete }: {
+  booking: Booking;
+  isAppt: boolean;
+  onPatch: (b: Booking, s: BookingStatus) => void;
+  onDelete: (b: Booking) => void;
+}) {
+  const meta = STATUS_META[b.status];
+  const colorMap: Record<string, string> = {
+    pending:   "rgba(251,191,36,0.15)",
+    confirmed: "rgba(125,211,252,0.12)",
+    done:      "rgba(251,113,133,0.12)",
+    cancelled: "rgba(107,98,128,0.1)",
+  };
+  return (
+    <div
+      className="rounded-xl px-3 py-2 text-sm flex flex-wrap items-center gap-2 border"
+      style={{ background: colorMap[b.status], borderColor: "var(--color-edge-soft)" }}
+    >
+      <span className="font-mono text-[11px] text-violet-300/70 w-10 shrink-0">
+        {b.scheduled_at?.slice(11, 16)}
+      </span>
+      <span className="font-medium text-violet-50 flex-1 truncate">{b.customer_name}</span>
+      {b.service_name && <span className="text-xs text-violet-300/60 hidden sm:block truncate">{b.service_name}</span>}
+      <span className={`chip text-[10px] ${meta.cls}`}>{meta.label}</span>
+      <div className="flex gap-1 ml-auto">
+        {b.status === "pending" && (
+          <button className="text-[10px] px-2 py-0.5 rounded border border-[var(--color-edge)] text-violet-200 hover:bg-violet-500/20" onClick={() => onPatch(b, "confirmed")}>OK</button>
+        )}
+        {(b.status === "pending" || b.status === "confirmed") && (
+          <button className="text-[10px] px-2 py-0.5 rounded border border-rose-500/30 text-rose-300 hover:bg-rose-500/10" onClick={() => onPatch(b, "cancelled")}>✕</button>
+        )}
+        <button className="text-[10px] px-1.5 py-0.5 rounded border border-rose-500/20 text-rose-400/70 hover:bg-rose-500/10" onClick={() => onDelete(b)} title="Eliminar">
+          <IconTrash width={11} height={11} />
+        </button>
       </div>
     </div>
   );
 }
 
+// ─── Formulario de nueva cita ───────────────────────────────────────
+
 function BookingForm({
-  services,
-  config,
-  demo,
-  onCreated,
-  onCancel,
+  services, config, demo, onCreated, onCancel,
 }: {
   services: Service[];
   config: BusinessConfig;
@@ -240,16 +402,13 @@ function BookingForm({
     }
   }, [isAppt, date, duration]);
 
-  useEffect(() => {
-    loadSlots();
-  }, [loadSlots]);
+  useEffect(() => { loadSlots(); }, [loadSlots]);
 
   async function submit() {
     if (!name.trim()) return setError("El nombre del cliente es obligatorio.");
     if (isAppt && !time) return setError("Elige una franja horaria.");
     if (!isAppt && !time) return setError("Indica la hora.");
-    setBusy(true);
-    setError(null);
+    setBusy(true); setError(null);
 
     const scheduled_at = `${date}T${time}:00`;
     const payload = {
@@ -315,7 +474,6 @@ function BookingForm({
         </Field>
       </div>
 
-      {/* Hora: franjas (citas) o time libre (pedidos) */}
       {isAppt ? (
         <div>
           <span className="text-xs text-violet-300/70 mb-1.5 block">Franja disponible</span>
@@ -370,18 +528,15 @@ function BookingForm({
   );
 }
 
-function AgendaSettings({
-  config,
-  demo,
-  onSave,
-}: {
+// ─── Ajustes de agenda ──────────────────────────────────────────────
+
+function AgendaSettings({ config, demo, onSave }: {
   config: BusinessConfig;
   demo: boolean;
   onSave: (c: BusinessConfig) => void;
 }) {
   const [type, setType] = useState<BusinessType>(config.businessType);
   const [slot, setSlot] = useState(String(config.slotMin));
-  // Editor de horario: un único turno por día (apertura/cierre) para simplicidad
   const [hours, setHours] = useState(() => {
     const init: Record<string, { open: string; close: string; on: boolean }> = {};
     for (let d = 0; d < 7; d++) {
@@ -394,8 +549,7 @@ function AgendaSettings({
   const [saved, setSaved] = useState(false);
 
   async function save() {
-    setBusy(true);
-    setSaved(false);
+    setBusy(true); setSaved(false);
     const openHours: Record<string, [string, string][]> = {};
     for (let d = 0; d < 7; d++) {
       openHours[String(d)] = hours[d].on ? [[hours[d].open, hours[d].close]] : [];
@@ -420,13 +574,11 @@ function AgendaSettings({
     }
   }
 
-  // Orden lunes→domingo para la UI
   const order = [1, 2, 3, 4, 5, 6, 0];
 
   return (
     <div className="panel p-6 space-y-5">
       <h3 className="font-semibold text-violet-50">Ajustes de la agenda</h3>
-
       <div>
         <span className="text-xs text-violet-300/70 mb-2 block">Tipo de negocio</span>
         <div className="flex gap-2">
@@ -448,13 +600,7 @@ function AgendaSettings({
             </button>
           ))}
         </div>
-        <p className="text-xs text-violet-300/50 mt-2">
-          {type === "appointments"
-            ? "Cada servicio usa su duración para calcular franjas y bloquear solapamientos."
-            : "Reservas con hora libre y nº de personas, sin bloqueo estricto de disponibilidad."}
-        </p>
       </div>
-
       {type === "appointments" && (
         <div className="grid sm:grid-cols-[120px_1fr] gap-3 items-center">
           <span className="text-xs text-violet-300/70">Intervalo de franjas</span>
@@ -465,7 +611,6 @@ function AgendaSettings({
           </select>
         </div>
       )}
-
       <div>
         <span className="text-xs text-violet-300/70 mb-2 block">Horario de apertura</span>
         <div className="space-y-1.5">
@@ -488,11 +633,8 @@ function AgendaSettings({
           ))}
         </div>
       </div>
-
       <div className="flex items-center gap-3">
-        <button className="btn-primary" onClick={save} disabled={busy}>
-          {busy ? "Guardando…" : "Guardar ajustes"}
-        </button>
+        <button className="btn-primary" onClick={save} disabled={busy}>{busy ? "Guardando…" : "Guardar ajustes"}</button>
         {saved && <span className="text-sm text-emerald-300">✓ Guardado</span>}
         {demo && <span className="text-xs text-amber-300/80">Modo demo: aplica solo en esta sesión.</span>}
       </div>

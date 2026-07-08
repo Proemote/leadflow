@@ -136,6 +136,21 @@ export interface Booking {
   service_name?: string | null;
 }
 
+export type ContactServiceStatus = "contratado" | "completado" | "cancelado";
+
+export interface ContactService {
+  id: string;
+  contact_id: string;
+  service_id: string;
+  status: ContactServiceStatus;
+  notes: string | null;
+  created_at: string;
+  /** Sólo para la UI: datos del servicio resueltos */
+  service_name?: string | null;
+  service_price_cents?: number | null;
+  service_currency?: string | null;
+}
+
 /** 'appointments' = citas con franjas y bloqueo · 'orders' = pedidos/reservas simples */
 export type BusinessType = "appointments" | "orders";
 
