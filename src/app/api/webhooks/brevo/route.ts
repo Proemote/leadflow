@@ -31,10 +31,16 @@ export async function POST(req: NextRequest) {
 
     // 2. Parsear payload
     const body: BrevoWebhookPayload = await req.json();
-    const email = body.email?.toString().toLowerCase().trim();
+    console.log("[BREVO WEBHOOK] Full payload received:", JSON.stringify(body, null, 2));
+
+    // El email puede venir en "email" o en "contact.email" o "EMAIL" etc.
+    let email = body.email?.toString().toLowerCase().trim() ||
+                body.contact?.email?.toString().toLowerCase().trim() ||
+                body.EMAIL?.toString().toLowerCase().trim() ||
+                (body.attributes?.EMAIL)?.toString().toLowerCase().trim();
 
     if (!email) {
-      console.warn("[BREVO WEBHOOK] Missing email in payload");
+      console.warn("[BREVO WEBHOOK] Missing email in payload. Keys:", Object.keys(body));
       return NextResponse.json(
         { error: "Email is required" },
         { status: 400 }
