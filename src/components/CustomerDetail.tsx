@@ -79,8 +79,56 @@ export function CustomerDetail({
   const [showEditContact, setShowEditContact] = useState(false);
   const [showAddBooking, setShowAddBooking] = useState(false);
   const [showAddService, setShowAddService] = useState(false);
+  const [comments, setComments] = useState<Array<{ id: string; text: string; createdAt: string }>>([]);
+  const [newComment, setNewComment] = useState("");
+
+  // Load comments from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(`comments-${contact.id}`);
+      if (stored) {
+        setComments(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.error("Error loading comments:", e);
+    }
+  }, [contact.id]);
+
+  function addComment() {
+    if (!newComment.trim()) return;
+    const comment = {
+      id: `cmnt-${Date.now()}`,
+      text: newComment.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    const updated = [comment, ...comments];
+    setComments(updated);
+    localStorage.setItem(`comments-${contact.id}`, JSON.stringify(updated));
+    setNewComment("");
+  }
+
+  function deleteComment(id: string) {
+    const updated = comments.filter((c) => c.id !== id);
+    setComments(updated);
+    localStorage.setItem(`comments-${contact.id}`, JSON.stringify(updated));
+  }
   const meta = CUSTOMER_STATUS_META[initialMetrics.estado];
   const m = initialMetrics;
+
+  async function deleteContact() {
+    if (!confirm(`¿Eliminar contacto "${contact.name}"? Esta acción no se puede deshacer.`)) return;
+    if (demo) {
+      router.push("/clientes");
+      return;
+    }
+    try {
+      await fetch(`/api/customers/${contact.id}`, { method: "DELETE" });
+      router.push("/clientes");
+    } catch (e) {
+      console.error("Error deleting contact:", e);
+      alert("Error al eliminar contacto");
+    }
+  }
 
   async function patchBookingStatus(b: Booking, status: BookingStatus) {
     setBookings((arr) => arr.map((x) => (x.id === b.id ? { ...x, status } : x)));
@@ -150,6 +198,9 @@ export function CustomerDetail({
         </div>
         <div className="flex gap-3 flex-wrap">
           <button className="btn-ghost" onClick={() => setShowEditContact((v) => !v)}>Editar contacto</button>
+          <button className="text-[13px] px-3 py-1.5 rounded-lg border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 transition flex items-center gap-2" onClick={deleteContact}>
+            <IconTrash width={14} height={14} /> Borrar
+          </button>
           <button className="btn-primary flex items-center gap-2" onClick={() => setShowForm((v) => !v)}>
             <IconPlus width={16} height={16} /> Añadir operación
           </button>
@@ -350,6 +401,49 @@ export function CustomerDetail({
             })}
           </div>
         )}
+      </div>
+
+      {/* Comentarios */}
+      <div className="panel p-5">
+        <h3 className="font-semibold text-violet-50 mb-3">Comentarios</h3>
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <input
+              className="input flex-1 text-sm"
+              placeholder="Agregar comentario..."
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addComment()}
+            />
+            <button className="btn-primary text-sm px-4" onClick={addComment}>Agregar</button>
+          </div>
+          {comments.length === 0 ? (
+            <p className="text-sm text-violet-300/50 py-4 text-center">Sin comentarios aún.</p>
+          ) : (
+            <div className="space-y-3 mt-4 max-h-96 overflow-y-auto">
+              {comments.map((c) => {
+                const dt = new Date(c.createdAt);
+                const time = dt.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+                const date = dt.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+                return (
+                  <div key={c.id} className="p-3 rounded-lg bg-violet-500/5 border border-violet-500/20">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="text-[11px] text-violet-300/70">{date} a las {time}</div>
+                      <button
+                        className="text-violet-300/40 hover:text-rose-400 transition text-xs"
+                        onClick={() => deleteComment(c.id)}
+                        title="Eliminar comentario"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <p className="text-sm text-violet-50 mt-1 break-words">{c.text}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

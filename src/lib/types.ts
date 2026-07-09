@@ -18,6 +18,13 @@ export interface Contact {
   notes?: string | null;
 }
 
+export interface ContactComment {
+  id: string;
+  contact_id: string;
+  text: string;
+  created_at: string;
+}
+
 export type OperationStatus = "completed" | "pending" | "refunded";
 export type OperationSource = "manual" | "opportunity";
 
