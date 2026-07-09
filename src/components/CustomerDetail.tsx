@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Contact, Operation, CustomerMetrics, OperationStatus, Opportunity, Booking, BookingStatus, ContactService, ContactServiceStatus, Service, BusinessConfig } from "@/lib/types";
@@ -72,13 +72,14 @@ export function CustomerDetail({
 }) {
   const router = useRouter();
   const [contact, setContact] = useState(initialContact);
-  const [operations] = useState(initialOps);
+  const [operations, setOperations] = useState(initialOps);
   const [bookings, setBookings] = useState(initialBookings);
   const [contractedServices, setContractedServices] = useState(initialContractedServices);
   const [showForm, setShowForm] = useState(false);
   const [showEditContact, setShowEditContact] = useState(false);
   const [showAddBooking, setShowAddBooking] = useState(false);
   const [showAddService, setShowAddService] = useState(false);
+  const [editingOperation, setEditingOperation] = useState<Operation | null>(null);
   const [comments, setComments] = useState<Array<{ id: string; text: string; createdAt: string }>>([]);
   const [newComment, setNewComment] = useState("");
 
@@ -112,10 +113,36 @@ export function CustomerDetail({
     setComments(updated);
     localStorage.setItem(`comments-${contact.id}`, JSON.stringify(updated));
   }
+
+  async function deleteOperation(op: Operation) {
+    if (!confirm(`¿Eliminar operación "${op.concept}"?`)) return;
+    setOperations((arr) => arr.filter((o) => o.id !== op.id));
+    if (!demo) {
+      await fetch(`/api/operations/${op.id}`, { method: "DELETE" }).catch(e => {
+        console.error("Error deleting operation:", e);
+        alert("Error al eliminar");
+        setOperations((arr) => [...arr, op]);
+      });
+    }
+  }
+
+  async function updateOperation(op: Operation) {
+    setOperations((arr) => arr.map((o) => o.id === op.id ? op : o));
+    if (!demo) {
+      await fetch(`/api/operations/${op.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ concept: op.concept, amount_cents: op.amount_cents, status: op.status }),
+      }).catch(e => {
+        console.error("Error updating operation:", e);
+        alert("Error al guardar");
+      });
+    }
+  }
   const meta = CUSTOMER_STATUS_META[initialMetrics.estado];
   const m = initialMetrics;
 
-  async function deleteContact() {
+  const deleteContact = useCallback(async () => {
     if (!confirm(`¿Eliminar contacto "${contact.name}"? Esta acción no se puede deshacer.`)) return;
     if (demo) {
       router.push("/clientes");
@@ -128,7 +155,7 @@ export function CustomerDetail({
       console.error("Error deleting contact:", e);
       alert("Error al eliminar contacto");
     }
-  }
+  }, [contact.id, contact.name, demo, router]);
 
   async function patchBookingStatus(b: Booking, status: BookingStatus) {
     setBookings((arr) => arr.map((x) => (x.id === b.id ? { ...x, status } : x)));
@@ -386,7 +413,7 @@ export function CustomerDetail({
           <p className="text-sm text-violet-300/50 py-6 text-center">Aún no hay operaciones. Añade la primera para calcular su valor.</p>
         ) : (
           <div className="divide-y divide-[var(--color-edge-soft)]">
-            {operations.map((o) => {
+            {operations.slice(0, 10).map((o) => {
               const s = OP_STATUS[o.status];
               return (
                 <div key={o.id} className="flex items-center gap-3 py-3">
@@ -396,12 +423,43 @@ export function CustomerDetail({
                   </div>
                   <span className={`chip ${s.cls}`}>{s.label}</span>
                   <div className="text-sm font-semibold text-violet-50 w-24 text-right">{formatPrice(o.amount_cents, o.currency)}</div>
+                  <div className="flex gap-1.5">
+                    <button
+                      className="py-1 px-2 text-xs rounded border border-violet-500/30 text-violet-300 hover:bg-violet-500/10 transition"
+                      onClick={() => setEditingOperation(o)}
+                      title="Editar"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      className="py-1 px-1.5 text-xs rounded border border-rose-500/30 text-rose-300 hover:bg-rose-500/10 transition"
+                      onClick={() => deleteOperation(o)}
+                      title="Eliminar"
+                    >
+                      <IconTrash width={13} height={13} />
+                    </button>
+                  </div>
                 </div>
               );
             })}
           </div>
         )}
+        {operations.length > 10 && (
+          <p className="text-xs text-violet-300/50 mt-3 text-center">Mostrando 10 de {operations.length} operaciones</p>
+        )}
       </div>
+
+      {editingOperation && (
+        <EditOperationForm
+          operation={editingOperation}
+          demo={demo}
+          onSaved={(op) => {
+            updateOperation(op);
+            setEditingOperation(null);
+          }}
+          onCancel={() => setEditingOperation(null)}
+        />
+      )}
 
       {/* Comentarios */}
       <div className="panel p-5">
@@ -505,6 +563,7 @@ function AddOperationForm({ contactId, demo, onDone }: { contactId: string; demo
 function EditContactForm({ contact, demo, onSaved, onCancel }: { contact: Contact; demo: boolean; onSaved: (c: Contact) => void; onCancel: () => void }) {
   const [f, setF] = useState({
     name: contact.name ?? "",
+    surname: contact.surname ?? "",
     phone: contact.phone ?? "",
     email: contact.email ?? "",
     company: contact.company ?? "",
@@ -520,6 +579,7 @@ function EditContactForm({ contact, demo, onSaved, onCancel }: { contact: Contac
     setError(null);
     const patch = {
       name: f.name.trim() || null,
+      surname: f.surname.trim() || null,
       phone: f.phone.trim() || null,
       email: f.email.trim() || null,
       company: f.company.trim() || null,
@@ -555,6 +615,9 @@ function EditContactForm({ contact, demo, onSaved, onCancel }: { contact: Contac
       <div className="grid sm:grid-cols-2 gap-3">
         <Field label="Nombre">
           <input className="input" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
+        </Field>
+        <Field label="Apellidos">
+          <input className="input" value={f.surname} onChange={(e) => setF({ ...f, surname: e.target.value })} />
         </Field>
         <Field label="Teléfono">
           <input className="input" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} />
@@ -857,6 +920,81 @@ function AddBookingForm({
           {busy ? "Guardando…" : `Crear ${isAppt ? "cita" : "reserva"}`}
         </button>
         <button className="btn-ghost" onClick={onCancel}>Cancelar</button>
+      </div>
+    </div>
+  );
+}
+
+function EditOperationForm({
+  operation,
+  demo,
+  onSaved,
+  onCancel,
+}: {
+  operation: Operation;
+  demo: boolean;
+  onSaved: (op: Operation) => void;
+  onCancel: () => void;
+}) {
+  const [f, setF] = useState({
+    concept: operation.concept,
+    amount_cents: (operation.amount_cents / 100).toString(),
+    status: operation.status,
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    if (!f.concept.trim()) return setError("Concepto es obligatorio.");
+    setBusy(true);
+    setError(null);
+    const amount_cents = Math.round(parseFloat(f.amount_cents) * 100);
+    if (isNaN(amount_cents)) return setError("Monto inválido.");
+
+    if (demo) {
+      onSaved({ ...operation, concept: f.concept.trim(), amount_cents, status: f.status as OperationStatus });
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/operations/${operation.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ concept: f.concept.trim(), amount_cents, status: f.status }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? "Error");
+      onSaved(j.operation);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/50 backdrop-blur-sm" onClick={onCancel}>
+      <div className="panel p-6 w-full max-w-sm space-y-4" onClick={(e) => e.stopPropagation()}>
+        <h3 className="font-semibold text-violet-50">Editar operación</h3>
+        <Field label="Concepto">
+          <input className="input" value={f.concept} onChange={(e) => setF({ ...f, concept: e.target.value })} />
+        </Field>
+        <Field label="Monto (€)">
+          <input className="input" inputMode="decimal" value={f.amount_cents} onChange={(e) => setF({ ...f, amount_cents: e.target.value })} />
+        </Field>
+        <Field label="Estado">
+          <select className="input" value={f.status} onChange={(e) => setF({ ...f, status: e.target.value as OperationStatus })}>
+            <option value="completed">Completada</option>
+            <option value="pending">Pendiente</option>
+            <option value="refunded">Reembolsada</option>
+          </select>
+        </Field>
+        {demo && <p className="text-xs text-amber-300/80">Modo demo: no se guardará.</p>}
+        {error && <p className="text-sm text-rose-400">{error}</p>}
+        <div className="flex gap-3">
+          <button className="btn-primary" onClick={save} disabled={busy}>{busy ? "Guardando…" : "Guardar"}</button>
+          <button className="btn-ghost" onClick={onCancel}>Cancelar</button>
+        </div>
       </div>
     </div>
   );

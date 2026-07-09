@@ -124,6 +124,7 @@ export async function getCustomer(id: string): Promise<{
 
 export async function createContact(input: {
   name: string;
+  surname?: string | null;
   phone?: string | null;
   email?: string | null;
   company?: string | null;
@@ -135,6 +136,7 @@ export async function createContact(input: {
     return {
       id: `tmp-${Date.now()}`,
       name: input.name,
+      surname: input.surname || null,
       phone: input.phone || null,
       email: input.email || null,
       company: input.company || null,

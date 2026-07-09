@@ -6,6 +6,7 @@ export interface Contact {
   id: string;
   phone: string | null;
   name: string | null;
+  surname?: string | null;
   created_at: string;
   ad_source: string | null;
   ctwa_clid: string | null;
