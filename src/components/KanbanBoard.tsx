@@ -102,7 +102,15 @@ export function KanbanBoard({
       {/* Tablero */}
       <div className="flex gap-3 overflow-x-auto pb-3">
         {PIPELINE_STAGES.map((stage) => {
-          const items = opps.filter((o) => o.stage === stage);
+          // Cierre estimado más reciente arriba; sin fecha, al final
+          const items = opps
+            .filter((o) => o.stage === stage)
+            .sort((a, b) => {
+              if (!a.expected_close && !b.expected_close) return 0;
+              if (!a.expected_close) return 1;
+              if (!b.expected_close) return -1;
+              return b.expected_close.localeCompare(a.expected_close);
+            });
           const sum = items.reduce((s, o) => s + o.value_cents, 0);
           return (
             <div
