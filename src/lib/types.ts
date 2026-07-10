@@ -17,6 +17,11 @@ export interface Contact {
   company?: string | null;
   tags?: string[] | null;
   notes?: string | null;
+  // Campos de prospección local (importador masivo)
+  location?: string | null;
+  google_maps_url?: string | null;
+  website?: string | null;
+  social_links?: string[] | null;
 }
 
 export interface ContactComment {

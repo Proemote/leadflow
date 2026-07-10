@@ -10,6 +10,7 @@ import { computeCustomerMetrics } from "@/lib/metrics";
 import { formatPrice, parsePriceToCents } from "@/lib/money";
 import { initials } from "@/lib/format";
 import { IconPlus, IconUsers } from "@/components/icons";
+import { ImportContactsModal } from "@/components/ImportContactsModal";
 
 type SortKey = "clv" | "recencia" | "antiguedad";
 
@@ -27,6 +28,7 @@ export function ClientesList({
   const [estado, setEstado] = useState<string>("todos");
   const [sort, setSort] = useState<SortKey>("clv");
   const [showForm, setShowForm] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [customers, setCustomers] = useState<CustomerSummary[]>(initialCustomers);
 
   // En modo demo, agregar contactos temporales de localStorage
@@ -94,6 +96,9 @@ export function ClientesList({
             <option value="recencia">Ordenar: Recencia</option>
             <option value="antiguedad">Ordenar: Antigüedad</option>
           </select>
+          <button className="btn-ghost flex items-center gap-2 whitespace-nowrap" onClick={() => setShowImport(true)} title="Importar contactos desde CSV, Excel o Google Sheets">
+            📥 Importar
+          </button>
           <button className="btn-primary flex items-center gap-2 whitespace-nowrap" onClick={() => setShowForm((v) => !v)}>
             <IconPlus width={16} height={16} /> Nuevo contacto
           </button>
@@ -104,6 +109,13 @@ export function ClientesList({
         <div className="panel-tight px-4 py-2.5 text-xs text-amber-200/90">
           Modo demostración: estás viendo una cartera de ejemplo; los cambios no se guardan.
         </div>
+      )}
+
+      {showImport && (
+        <ImportContactsModal
+          onClose={() => setShowImport(false)}
+          onImported={() => router.refresh()}
+        />
       )}
 
       {showForm && (
