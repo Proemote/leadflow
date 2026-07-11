@@ -26,6 +26,7 @@ export function ClientesList({
   const router = useRouter();
   const [q, setQ] = useState("");
   const [estado, setEstado] = useState<string>("todos");
+  const [selectedTag, setSelectedTag] = useState<string>("todos");
   const [sort, setSort] = useState<SortKey>("clv");
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -52,9 +53,18 @@ export function ClientesList({
     }
   }, [demo, initialCustomers]);
 
+  const allTags = useMemo(() => {
+    const tags = new Set<string>();
+    customers.forEach((c) => {
+      (c.contact.tags ?? []).forEach((t) => tags.add(t));
+    });
+    return Array.from(tags).sort();
+  }, [customers]);
+
   const filtered = useMemo(() => {
     let list = customers.filter((c) => {
       if (estado !== "todos" && c.metrics.estado !== estado) return false;
+      if (selectedTag !== "todos" && !(c.contact.tags ?? []).includes(selectedTag)) return false;
       if (!q) return true;
       const hay = `${c.contact.name ?? ""} ${c.contact.company ?? ""} ${c.contact.email ?? ""} ${(c.contact.tags ?? []).join(" ")}`.toLowerCase();
       return hay.includes(q.toLowerCase());
@@ -66,7 +76,7 @@ export function ClientesList({
       return (a.metrics.clienteDesde ?? "9999").localeCompare(b.metrics.clienteDesde ?? "9999");
     });
     return list;
-  }, [customers, q, estado, sort]);
+  }, [customers, q, estado, selectedTag, sort]);
 
   const hayCompras = aggregate.clientesConCompra > 0;
 
@@ -91,6 +101,14 @@ export function ClientesList({
             <option value="inactivo">Inactivos</option>
             <option value="potencial">Potenciales</option>
           </select>
+          {allTags.length > 0 && (
+            <select className="input py-2 w-auto" value={selectedTag} onChange={(e) => setSelectedTag(e.target.value)}>
+              <option value="todos">Todas las etiquetas</option>
+              {allTags.map((tag) => (
+                <option key={tag} value={tag}>{tag}</option>
+              ))}
+            </select>
+          )}
           <select className="input py-2 w-auto" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
             <option value="clv">Ordenar: CLV</option>
             <option value="recencia">Ordenar: Recencia</option>
