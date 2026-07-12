@@ -12,7 +12,7 @@ import { initials } from "@/lib/format";
 import { IconPlus, IconUsers } from "@/components/icons";
 import { ImportContactsModal } from "@/components/ImportContactsModal";
 
-type SortKey = "clv" | "recencia" | "antiguedad";
+type SortKey = "clv" | "recencia" | "antiguedad" | "nombre";
 
 export function ClientesList({
   customers: initialCustomers,
@@ -30,6 +30,9 @@ export function ClientesList({
   const [sort, setSort] = useState<SortKey>("clv");
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [clvMin, setClvMin] = useState("");
+  const [clvMax, setClvMax] = useState("");
   const [customers, setCustomers] = useState<CustomerSummary[]>(initialCustomers);
 
   // En modo demo, agregar contactos temporales de localStorage
@@ -62,21 +65,25 @@ export function ClientesList({
   }, [customers]);
 
   const filtered = useMemo(() => {
+    const minCLV = clvMin ? parsePriceToCents(clvMin) : 0;
+    const maxCLV = clvMax ? parsePriceToCents(clvMax) : Infinity;
+
     let list = customers.filter((c) => {
       if (estado !== "todos" && c.metrics.estado !== estado) return false;
       if (selectedTag !== "todos" && !(c.contact.tags ?? []).includes(selectedTag)) return false;
+      if (c.metrics.clvCents < minCLV || c.metrics.clvCents > maxCLV) return false;
       if (!q) return true;
-      const hay = `${c.contact.name ?? ""} ${c.contact.company ?? ""} ${c.contact.email ?? ""} ${(c.contact.tags ?? []).join(" ")}`.toLowerCase();
+      const hay = `${c.contact.name ?? ""} ${c.contact.company ?? ""} ${c.contact.email ?? ""} ${c.contact.phone ?? ""} ${(c.contact.tags ?? []).join(" ")}`.toLowerCase();
       return hay.includes(q.toLowerCase());
     });
     list = [...list].sort((a, b) => {
       if (sort === "clv") return b.metrics.clvCents - a.metrics.clvCents;
       if (sort === "recencia") return (a.metrics.recenciaDias ?? 1e9) - (b.metrics.recenciaDias ?? 1e9);
-      // antigüedad: cliente desde más antiguo primero
+      if (sort === "nombre") return (a.contact.name ?? "").localeCompare(b.contact.name ?? "");
       return (a.metrics.clienteDesde ?? "9999").localeCompare(b.metrics.clienteDesde ?? "9999");
     });
     return list;
-  }, [customers, q, estado, selectedTag, sort]);
+  }, [customers, q, estado, selectedTag, sort, clvMin, clvMax]);
 
   const hayCompras = aggregate.clientesConCompra > 0;
 
@@ -92,7 +99,14 @@ export function ClientesList({
 
       {/* Controles */}
       <div className="flex flex-col lg:flex-row gap-3 lg:items-center justify-between">
-        <input className="input lg:max-w-xs" placeholder="Buscar por nombre, empresa, email o etiqueta…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="flex-1 lg:max-w-xs flex flex-col gap-2">
+          <input className="input" placeholder="Buscar por nombre, empresa, email, teléfono o etiqueta…" value={q} onChange={(e) => setQ(e.target.value)} />
+          {(clvMin || clvMax) && (
+            <div className="text-xs text-violet-300/60">
+              Rango CLV: {clvMin || "—"} a {clvMax || "—"}
+            </div>
+          )}
+        </div>
         <div className="flex flex-wrap gap-2 items-center">
           <select className="input py-2 w-auto" value={estado} onChange={(e) => setEstado(e.target.value)}>
             <option value="todos">Todos los estados</option>
@@ -113,15 +127,43 @@ export function ClientesList({
             <option value="clv">Ordenar: CLV</option>
             <option value="recencia">Ordenar: Recencia</option>
             <option value="antiguedad">Ordenar: Antigüedad</option>
+            <option value="nombre">Ordenar: Nombre</option>
           </select>
+          <button className="btn-ghost text-sm py-2 px-3" onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}>
+            ⚙️ Filtros
+          </button>
           <button className="btn-ghost flex items-center gap-2 whitespace-nowrap" onClick={() => setShowImport(true)} title="Importar contactos desde CSV, Excel o Google Sheets">
             📥 Importar
           </button>
           <button className="btn-primary flex items-center gap-2 whitespace-nowrap" onClick={() => setShowForm((v) => !v)}>
-            <IconPlus width={16} height={16} /> Nuevo contacto
+            <IconPlus width={16} height={16} /> Nuevo
           </button>
         </div>
       </div>
+
+      {showAdvancedFilters && (
+        <div className="panel p-4 space-y-3 bg-violet-500/5">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-violet-50">Filtros avanzados</h4>
+            <button className="text-violet-300/40 hover:text-violet-200 text-sm" onClick={() => setShowAdvancedFilters(false)}>✕</button>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-violet-300/70 block mb-1">CLV mínimo (€)</label>
+              <input type="number" className="input text-sm" placeholder="0" value={clvMin} onChange={(e) => setClvMin(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs text-violet-300/70 block mb-1">CLV máximo (€)</label>
+              <input type="number" className="input text-sm" placeholder="Sin límite" value={clvMax} onChange={(e) => setClvMax(e.target.value)} />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button className="btn-ghost text-sm py-1.5 px-3" onClick={() => { setClvMin(""); setClvMax(""); }}>
+              Limpiar filtros
+            </button>
+          </div>
+        </div>
+      )}
 
       {demo && (
         <div className="panel-tight px-4 py-2.5 text-xs text-amber-200/90">

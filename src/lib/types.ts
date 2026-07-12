@@ -17,6 +17,7 @@ export interface Contact {
   company?: string | null;
   tags?: string[] | null;
   notes?: string | null;
+  journey_stage?: string | null;
   // Campos de prospección local (importador masivo)
   location?: string | null;
   google_maps_url?: string | null;

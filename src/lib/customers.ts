@@ -169,7 +169,7 @@ export async function createContact(input: {
 
 export async function updateContact(
   id: string,
-  patch: Partial<Pick<Contact, "name" | "phone" | "email" | "company" | "tags" | "notes">>
+  patch: Partial<Pick<Contact, "name" | "surname" | "phone" | "email" | "company" | "tags" | "notes" | "journey_stage">>
 ): Promise<Contact> {
   const sb = supabaseAdmin();
   const { data, error } = await sb

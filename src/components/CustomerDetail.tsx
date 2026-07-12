@@ -80,38 +80,89 @@ export function CustomerDetail({
   const [showAddBooking, setShowAddBooking] = useState(false);
   const [showAddService, setShowAddService] = useState(false);
   const [editingOperation, setEditingOperation] = useState<Operation | null>(null);
-  const [comments, setComments] = useState<Array<{ id: string; text: string; createdAt: string }>>([]);
+  const [comments, setComments] = useState<Array<{ id: string; content: string; created_at: string }>>([]);
   const [newComment, setNewComment] = useState("");
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [commentError, setCommentError] = useState<string | null>(null);
 
-  // Load comments from localStorage on mount
+  // Load comments from BD on mount
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(`comments-${contact.id}`);
-      if (stored) {
-        setComments(JSON.parse(stored));
+    if (demo) {
+      try {
+        const stored = localStorage.getItem(`comments-${contact.id}`);
+        if (stored) {
+          setComments(JSON.parse(stored));
+        }
+      } catch (e) {
+        console.error("Error loading comments:", e);
       }
-    } catch (e) {
-      console.error("Error loading comments:", e);
+      return;
     }
-  }, [contact.id]);
 
-  function addComment() {
+    async function loadComments() {
+      setLoadingComments(true);
+      try {
+        const res = await fetch(`/api/contacts/${contact.id}/notes`);
+        if (res.ok) {
+          const data = await res.json();
+          setComments(data.notes || []);
+        }
+      } catch (e) {
+        console.error("Error loading comments:", e);
+      } finally {
+        setLoadingComments(false);
+      }
+    }
+    loadComments();
+  }, [contact.id, demo]);
+
+  async function addComment() {
     if (!newComment.trim()) return;
-    const comment = {
-      id: `cmnt-${Date.now()}`,
-      text: newComment.trim(),
-      createdAt: new Date().toISOString(),
-    };
-    const updated = [comment, ...comments];
-    setComments(updated);
-    localStorage.setItem(`comments-${contact.id}`, JSON.stringify(updated));
-    setNewComment("");
+    setCommentError(null);
+    try {
+      if (demo) {
+        const comment = {
+          id: `cmnt-${Date.now()}`,
+          content: newComment.trim(),
+          created_at: new Date().toISOString(),
+        };
+        const updated = [comment, ...comments];
+        setComments(updated);
+        localStorage.setItem(`comments-${contact.id}`, JSON.stringify(updated));
+        setNewComment("");
+        return;
+      }
+
+      const res = await fetch("/api/contact-notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contact_id: contact.id, content: newComment.trim() }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? "Error al guardar comentario");
+      setComments((prev) => [j.note, ...prev]);
+      setNewComment("");
+    } catch (e) {
+      setCommentError(e instanceof Error ? e.message : "Error desconocido");
+    }
   }
 
-  function deleteComment(id: string) {
-    const updated = comments.filter((c) => c.id !== id);
-    setComments(updated);
-    localStorage.setItem(`comments-${contact.id}`, JSON.stringify(updated));
+  async function deleteComment(id: string) {
+    if (!confirm("¿Eliminar este comentario?")) return;
+    try {
+      if (demo) {
+        const updated = comments.filter((c) => c.id !== id);
+        setComments(updated);
+        localStorage.setItem(`comments-${contact.id}`, JSON.stringify(updated));
+        return;
+      }
+
+      const res = await fetch(`/api/contact-notes?id=${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Error al eliminar");
+      setComments((prev) => prev.filter((c) => c.id !== id));
+    } catch (e) {
+      setCommentError(e instanceof Error ? e.message : "Error desconocido");
+    }
   }
 
   async function deleteOperation(op: Operation) {
@@ -475,12 +526,14 @@ export function CustomerDetail({
             />
             <button className="btn-primary text-sm px-4" onClick={addComment}>Agregar</button>
           </div>
-          {comments.length === 0 ? (
+          {commentError && <p className="text-sm text-rose-400">{commentError}</p>}
+          {loadingComments && <p className="text-sm text-violet-300/50">Cargando comentarios…</p>}
+          {!loadingComments && comments.length === 0 ? (
             <p className="text-sm text-violet-300/50 py-4 text-center">Sin comentarios aún.</p>
           ) : (
             <div className="space-y-3 mt-4 max-h-96 overflow-y-auto">
               {comments.map((c) => {
-                const dt = new Date(c.createdAt);
+                const dt = new Date(c.created_at);
                 const time = dt.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
                 const date = dt.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
                 return (
@@ -495,7 +548,7 @@ export function CustomerDetail({
                         ✕
                       </button>
                     </div>
-                    <p className="text-sm text-violet-50 mt-1 break-words">{c.text}</p>
+                    <p className="text-sm text-violet-50 mt-1 break-words">{c.content}</p>
                   </div>
                 );
               })}
@@ -584,7 +637,6 @@ function EditContactForm({ contact, demo, onSaved, onCancel }: { contact: Contac
       email: f.email.trim() || null,
       company: f.company.trim() || null,
       notes: f.notes.trim() || null,
-      journey_stage: f.journey_stage || null,
       tags: f.tags.split(",").map((t) => t.trim()).filter(Boolean),
     };
 
