@@ -53,30 +53,54 @@ Diferenciador central de Proemote: automatización y gestión de clientes con IA
 
 ---
 
-## Estado actual (12 julio 2026)
+## Estado actual (15 julio 2026)
 
-### ✅ Implementado hoy (12 julio - tarde)
+### ✅ Completado (12 julio)
 
-#### Fix: Error al guardar cambios en contactos ("Error interno del servidor")
-- **Problema:** Al intentar guardar cambios en cualquier contacto (editar etiquetas, nombre, etc.), devolvía error 500
-- **Causa raíz:** El código intentaba actualizar campo `journey_stage` que NO existe en tabla `contacts` de Supabase
-- **Cambios aplicados:**
-  - `src/app/api/customers/[id]/route.ts`: Removido `journey_stage` de lista de campos permitidos
-  - `src/components/CustomerDetail.tsx`: Removido `journey_stage` del objeto patch enviado al servidor
-  - `src/lib/types.ts`: Agregado `journey_stage` como campo opcional en tipo `Contact` (para uso futuro)
-  - `src/lib/customers.ts`: Actualizada función `updateContact` para incluir `surname` en tipo permitido
-- **Resultado:** Edición de contactos ahora funciona sin errores ✅
+#### Fix: Error al guardar cambios en contactos
+- Problema resuelto: Campo `journey_stage` no existía en Supabase
+- Cambios aplicados en 4 archivos
+- Edición de contactos funcional sin errores ✅
 
-#### Migración a GitHub y CI/CD con Vercel
-- **Antes:** Código local + deploy manual en Vercel (sin control de versiones)
-- **Ahora:** Repositorio público en GitHub `Proemote/leadflow`
-- **Beneficios:**
-  - Control de versiones completo
-  - Historial de cambios
-  - CI/CD automatizado: cada push a `main` → deploy automático en Vercel
-  - Mejor colaboración si se suman más desarrolladores
-- **Flujo nuevo:** `git push` → GitHub → Vercel auto-deploy (en ~3-5 min)
-- **Verificado:** 25 commits ya en GitHub, incluyendo fixes y features ✅
+#### Migración a GitHub y CI/CD
+- Repositorio: https://github.com/Proemote/leadflow
+- 25 commits mirados a GitHub
+- Vercel conectado con auto-deploy en cada push ✅
+- **Flujo:** `git push` → GitHub → Vercel (deploy automático en 3-5 min)
+
+### 📋 Prioridades Pendientes
+
+#### 🔴 ALTA PRIORIDAD
+1. **Webhook de Brevo entrante**
+   - Recibir eventos de email marketing (abiertos, clics, bounces)
+   - Actualizar estado de contactos automáticamente
+   - Cierre de bucle: Brevo ↔ LeadFlow
+   - Impacto: Cierre de ciclo completo para clientes con email marketing
+
+2. **Dashboard de KPIs históricos**
+   - Gráficos de evolución: CLV, ingresos, clientes por mes
+   - Seguimiento de tendencias
+   - Reportería mejorada para propuestas
+   - Impacto: Mejor venta de servicios (mostrar ROI a clientes)
+
+#### 🟡 MEDIA PRIORIDAD
+3. **Sistema de tareas/follow-ups**
+   - Recordatorios automáticos ("hace 3 días que no contactas a X")
+   - Tareas con vencimiento
+   - Integración calendar
+   - Impacto: Mejora operacional para usuarios
+
+4. **Mejorar importador masivo**
+   - Detectar duplicados por email/teléfono
+   - Mapeo automático mejorado
+   - Preview antes de importar
+   - Impacto: UX mejorada para importaciones
+
+#### 🟢 BAJA PRIORIDAD
+5. **Tests automatizados** — Unit + E2E
+6. **Documentación/onboarding** — Guías de uso para clientes
+7. **Búsqueda avanzada por ciudad/provincia** — Nice-to-have
+8. **Automatización de flujos trigger-based** — Futuro (Zapier/Make)
 
 ### ✅ Implementado recientemente (11-12 julio)
 
@@ -206,4 +230,4 @@ WHATSAPP_BOT_TOKEN=...
 
 ---
 
-**Última actualización:** 12 julio 2026 (fix error guardado contactos + GitHub + CI/CD)
+**Última actualización:** 15 julio 2026 (GitHub + CI/CD operativo, prioridades pendientes categorizadas)
