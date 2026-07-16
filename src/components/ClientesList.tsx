@@ -35,6 +35,13 @@ export function ClientesList({
   const [clvMax, setClvMax] = useState("");
   const [customers, setCustomers] = useState<CustomerSummary[]>(initialCustomers);
 
+  // Abrir formulario/importador directamente si se llega desde un acceso directo (ej. dashboard)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("new") === "1") setShowForm(true);
+    if (params.get("import") === "1") setShowImport(true);
+  }, []);
+
   // En modo demo, agregar contactos temporales de localStorage
   useEffect(() => {
     if (!demo) return;

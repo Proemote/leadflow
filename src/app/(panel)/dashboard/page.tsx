@@ -9,11 +9,15 @@ import {
 } from "@/lib/db";
 import { getBookings, getBookingsForUser } from "@/lib/bookings";
 import { getBusinessConfig } from "@/lib/business";
+import { getCustomers, getCustomersForUser } from "@/lib/customers";
+import { getOpportunities, getOpportunitiesForUser } from "@/lib/opportunities";
+import { getProfile } from "@/lib/profile";
 import { getServerUserId } from "@/lib/api-auth";
 import { nowParts, dateKeyOf } from "@/lib/availability";
 import { Donut, Ring, BarSeries, Meter } from "@/components/charts";
 import { IconBolt, IconCalendar } from "@/components/icons";
 import { scoreLabel } from "@/lib/format";
+import { formatPrice } from "@/lib/money";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -22,13 +26,17 @@ export default async function DashboardPage() {
   const userId = await getServerUserId();
   const scoped = isSupabaseConfigured() && userId;
 
-  const [metrics, activity, conversations, bookings, business] = await Promise.all([
-    scoped ? getDashboardMetricsForUser(userId) : getDashboardMetrics(),
-    scoped ? getWeeklyActivityForUser(userId) : getWeeklyActivity(),
-    scoped ? getConversationsForUser(userId) : getConversations(),
-    scoped ? getBookingsForUser(userId) : getBookings(),
-    getBusinessConfig(),
-  ]);
+  const [metrics, activity, conversations, bookings, business, { customers, aggregate }, { opportunities }, profile] =
+    await Promise.all([
+      scoped ? getDashboardMetricsForUser(userId) : getDashboardMetrics(),
+      scoped ? getWeeklyActivityForUser(userId) : getWeeklyActivity(),
+      scoped ? getConversationsForUser(userId) : getConversations(),
+      scoped ? getBookingsForUser(userId) : getBookings(),
+      getBusinessConfig(),
+      scoped ? getCustomersForUser(userId) : getCustomers(),
+      scoped ? getOpportunitiesForUser(userId) : getOpportunities(),
+      getProfile(),
+    ]);
 
   // Agenda
   const { dateKey: today, minutes: nowMin } = nowParts();
@@ -48,6 +56,7 @@ export default async function DashboardPage() {
     .sort((a, b) => (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? ""));
   const upcomingCount = upcomingBookings.length;
   const agendaLabel = business.businessType === "appointments" ? "Citas" : "Reservas";
+  const agendaLabelSingular = business.businessType === "appointments" ? "cita" : "reserva";
 
   const hotLeads = conversations
     .filter((c) => c.lead?.score === "hot" || c.lead?.score === "warm")
@@ -55,6 +64,22 @@ export default async function DashboardPage() {
     .slice(0, 4);
 
   const maxSource = Math.max(1, ...metrics.sources.map((s) => s.count));
+
+  // Prioridades de hoy (para el saludo de Leo)
+  const hotOpportunities = opportunities.filter(
+    (o) => o.stage === "Propuesta" || o.stage === "Negociación"
+  ).length;
+  const pendingConversations = conversations.filter(
+    (c) => c.lastMessage?.role === "user"
+  ).length;
+  const atRiskCustomers = customers
+    .filter((c) => c.metrics.estado === "riesgo")
+    .sort((a, b) => b.metrics.clvCents - a.metrics.clvCents);
+  const vipAtRisk = atRiskCustomers[0] ?? null;
+
+  const hour = Math.floor(nowMin / 60);
+  const greeting = hour < 14 ? "Buenos días" : hour < 21 ? "Buenas tardes" : "Buenas noches";
+  const firstName = profile.name.split(" ")[0];
 
   // Eficiencia del agente (derivada)
   const qualified = metrics.activeLeads;
@@ -64,15 +89,84 @@ export default async function DashboardPage() {
       : 0;
   const hotRate = metrics.hotPct;
 
+  const nothingUrgent = hotOpportunities === 0 && pendingConversations === 0 && upcomingCount === 0 && !vipAtRisk;
+
   return (
     <div className="space-y-7">
-      <div>
-        <h1 className="text-4xl font-bold tracking-tight gradient-text">
-          Panel del embudo
+      {/* Saludo de Leo */}
+      <div className="panel p-6 md:p-8">
+        <p className="text-sm text-violet-300/70">👋 {greeting}, {firstName}.</p>
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight gradient-text mt-1">
+          Hoy he analizado toda tu actividad.
         </h1>
-        <p className="text-violet-300/70 mt-1">
-          Leo cualificando y respondiendo leads en tiempo real.
-        </p>
+
+        <div className="flex flex-wrap gap-2.5 mt-5">
+          {hotOpportunities > 0 && (
+            <span className="chip chip-hot">
+              🔴 {hotOpportunities} oportunidad{hotOpportunities === 1 ? "" : "es"} caliente{hotOpportunities === 1 ? "" : "s"}
+            </span>
+          )}
+          {pendingConversations > 0 && (
+            <span className="chip chip-warm">
+              🟡 {pendingConversations} conversaci{pendingConversations === 1 ? "ón" : "ones"} pendiente{pendingConversations === 1 ? "" : "s"}
+            </span>
+          )}
+          {upcomingCount > 0 && (
+            <span className="chip chip-cold">
+              🔵 {upcomingCount} {upcomingCount === 1 ? agendaLabelSingular : agendaLabel.toLowerCase()} próxima{upcomingCount === 1 ? "" : "s"}
+            </span>
+          )}
+          {nothingUrgent && <span className="chip">✅ Todo al día, sin pendientes urgentes</span>}
+        </div>
+
+        {vipAtRisk && (
+          <div className="mt-4 panel-tight px-4 py-3 flex items-start gap-2.5 text-sm text-violet-100">
+            <span className="shrink-0">⚠️</span>
+            <p>
+              He detectado un cliente en riesgo de perderse:{" "}
+              <strong className="text-violet-50">
+                {vipAtRisk.contact.name ?? vipAtRisk.contact.phone}
+              </strong>{" "}
+              lleva {vipAtRisk.metrics.recenciaDias} días sin actividad.
+            </p>
+          </div>
+        )}
+
+        <Link href="#leads-por-contactar" className="btn-primary inline-flex items-center gap-2 mt-5">
+          Empezar mi jornada →
+        </Link>
+      </div>
+
+      {/* Acciones rápidas */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <QuickAction href="/clientes?new=1" emoji="👤" label="Nuevo contacto" />
+        <QuickAction href="/oportunidades?new=1" emoji="💼" label="Nueva oportunidad" />
+        <QuickAction
+          href="/reservas?new=1"
+          emoji="📅"
+          label={`Nueva ${agendaLabelSingular}`}
+        />
+        <QuickAction href="/servicios?new=1" emoji="🛠️" label="Añadir servicio" />
+        <QuickAction href="/clientes?import=1" emoji="📥" label="Importar contactos" />
+      </div>
+
+      {/* Salud de la cartera */}
+      <div className="panel p-6">
+        <h2 className="text-lg font-semibold text-violet-50 mb-4">Salud de la cartera</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
+          <PortfolioStat
+            label="Ingresos totales"
+            value={aggregate.clientesConCompra > 0 ? formatPrice(aggregate.ingresosTotalesCents) : "—"}
+          />
+          <PortfolioStat
+            label="CLV medio"
+            value={aggregate.clientesConCompra > 0 ? formatPrice(aggregate.clvMedioCents) : "—"}
+          />
+          <PortfolioStat
+            label="% recurrentes"
+            value={aggregate.clientesConCompra > 0 ? `${Math.round(aggregate.pctRecurrentes * 100)}%` : "—"}
+          />
+        </div>
       </div>
 
       {/* Fila superior */}
@@ -150,7 +244,7 @@ export default async function DashboardPage() {
         </div>
 
         {/* Leads calientes */}
-        <div className="panel p-6">
+        <div id="leads-por-contactar" className="panel p-6 scroll-mt-24">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-violet-50">
               Leads por contactar
@@ -274,6 +368,27 @@ export default async function DashboardPage() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function QuickAction({ href, emoji, label }: { href: string; emoji: string; label: string }) {
+  return (
+    <Link
+      href={href}
+      className="panel-tight px-4 py-3.5 flex items-center gap-3 hover:border-violet-500/40 transition"
+    >
+      <span className="text-xl shrink-0">{emoji}</span>
+      <span className="text-sm font-medium text-violet-100">{label}</span>
+    </Link>
+  );
+}
+
+function PortfolioStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[11px] uppercase tracking-wider text-violet-300/60">{label}</div>
+      <div className="text-2xl font-bold text-violet-50 mt-0.5">{value}</div>
     </div>
   );
 }

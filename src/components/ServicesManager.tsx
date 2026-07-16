@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Service } from "@/lib/types";
 import { formatPrice, parsePriceToCents } from "@/lib/money";
 import { IconPlus, IconTrash } from "@/components/icons";
@@ -40,6 +40,12 @@ export function ServicesManager({
     setError(null);
     setDraft({ ...EMPTY });
   }
+
+  // Abrir formulario de nuevo servicio si se llega desde un acceso directo (ej. dashboard)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("new") === "1") openNew();
+  }, []);
   function openEdit(s: Service) {
     setError(null);
     setDraft({

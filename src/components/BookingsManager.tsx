@@ -58,6 +58,12 @@ export function BookingsManager({
   const [view, setView] = useState<"agenda" | "calendar">("agenda");
   const [agendaDate, setAgendaDate] = useState(todayKey());
 
+  // Abrir formulario de nueva cita/reserva si se llega desde un acceso directo (ej. dashboard)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("new") === "1") setShowForm(true);
+  }, []);
+
   const isAppt = config.businessType === "appointments";
 
   async function patchStatus(b: Booking, status: BookingStatus) {

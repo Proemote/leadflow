@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Opportunity, PipelineStage, PIPELINE_STAGES, TERMINAL_STAGES } from "@/lib/types";
 import { formatPrice, parsePriceToCents } from "@/lib/money";
 import { IconPlus, IconTrash } from "@/components/icons";
@@ -30,6 +30,12 @@ export function KanbanBoard({
   const [overStage, setOverStage] = useState<string | null>(null);
   const [editing, setEditing] = useState<Opportunity | { preset: PipelineStage } | "new" | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+
+  // Abrir formulario de nueva oportunidad si se llega desde un acceso directo (ej. dashboard)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("new") === "1") setEditing("new");
+  }, []);
 
   const metrics = useMemo(() => {
     const open = opps.filter((o) => !TERMINAL_STAGES.includes(o.stage));
