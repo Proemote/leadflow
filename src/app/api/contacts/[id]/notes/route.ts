@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/admin";
+import { withAuth } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(
-  req: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
-) {
+export const GET = withAuth(async (req: NextRequest, userId: string) => {
   try {
-    const { id } = await ctx.params;
+    const id = req.nextUrl.pathname.split("/").at(-2);
 
     if (!id) {
       return NextResponse.json({ error: "id es obligatorio" }, { status: 400 });
@@ -27,6 +25,7 @@ export async function GET(
       .from("contact_notes")
       .select()
       .eq("contact_id", id)
+      .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -43,4 +42,4 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});

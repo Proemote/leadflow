@@ -2,9 +2,14 @@ import {
   getDashboardMetrics,
   getWeeklyActivity,
   getConversations,
+  getDashboardMetricsForUser,
+  getWeeklyActivityForUser,
+  getConversationsForUser,
+  isSupabaseConfigured,
 } from "@/lib/db";
-import { getBookings } from "@/lib/bookings";
+import { getBookings, getBookingsForUser } from "@/lib/bookings";
 import { getBusinessConfig } from "@/lib/business";
+import { getServerUserId } from "@/lib/api-auth";
 import { nowParts, dateKeyOf } from "@/lib/availability";
 import { Donut, Ring, BarSeries, Meter } from "@/components/charts";
 import { IconBolt, IconCalendar } from "@/components/icons";
@@ -14,11 +19,14 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+  const userId = await getServerUserId();
+  const scoped = isSupabaseConfigured() && userId;
+
   const [metrics, activity, conversations, bookings, business] = await Promise.all([
-    getDashboardMetrics(),
-    getWeeklyActivity(),
-    getConversations(),
-    getBookings(),
+    scoped ? getDashboardMetricsForUser(userId) : getDashboardMetrics(),
+    scoped ? getWeeklyActivityForUser(userId) : getWeeklyActivity(),
+    scoped ? getConversationsForUser(userId) : getConversations(),
+    scoped ? getBookingsForUser(userId) : getBookings(),
     getBusinessConfig(),
   ]);
 

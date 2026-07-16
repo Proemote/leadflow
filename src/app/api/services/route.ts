@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isSupabaseConfigured } from "@/lib/db";
-import { getServices, createService } from "@/lib/services";
+import { getServicesForUser, createServiceForUser } from "@/lib/services";
+import { withAuth } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const services = await getServices();
+export const GET = withAuth(async (_req: NextRequest, userId: string) => {
+  const services = await getServicesForUser(userId);
   return NextResponse.json({ services });
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest, userId: string) => {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ error: "Supabase no configurado (modo demo)." }, { status: 400 });
   }
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
   if (!b.name?.trim()) {
     return NextResponse.json({ error: "El nombre es obligatorio." }, { status: 400 });
   }
-  const service = await createService({
+  const service = await createServiceForUser(userId, {
     name: b.name.trim(),
     description: b.description?.trim() || null,
     price_cents: Math.max(0, Math.round(b.price_cents ?? 0)),
@@ -28,4 +29,4 @@ export async function POST(req: NextRequest) {
     active: b.active ?? true,
   });
   return NextResponse.json({ service });
-}
+});

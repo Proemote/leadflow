@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
-import { getCustomer } from "@/lib/customers";
-import { getServices } from "@/lib/services";
+import { getCustomer, getCustomerForUser } from "@/lib/customers";
+import { getServices, getServicesForUser } from "@/lib/services";
 import { getBusinessConfig } from "@/lib/business";
 import { computeCustomerMetrics } from "@/lib/metrics";
 import { isSupabaseConfigured } from "@/lib/db";
+import { getServerUserId } from "@/lib/api-auth";
 import { CustomerDetail } from "@/components/CustomerDetail";
 
 export const dynamic = "force-dynamic";
@@ -14,9 +15,11 @@ export default async function ClienteDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const userId = await getServerUserId();
+  const scoped = isSupabaseConfigured() && userId;
   const [data, services, businessConfig] = await Promise.all([
-    getCustomer(id),
-    getServices(true),
+    scoped ? getCustomerForUser(userId, id) : getCustomer(id),
+    scoped ? getServicesForUser(userId, true) : getServices(true),
     getBusinessConfig(),
   ]);
   if (!data) notFound();

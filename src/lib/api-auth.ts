@@ -1,6 +1,24 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
+import { createSupabaseServer } from "./supabase/server";
+
+/**
+ * Obtiene el userId de la sesión actual desde un Server Component
+ * (páginas del panel). Devuelve null si no hay sesión o Supabase
+ * no está configurado (modo demo).
+ */
+export async function getServerUserId(): Promise<string | null> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anon) return null;
+
+  const supabase = await createSupabaseServer();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user?.id ?? null;
+}
 
 /**
  * Obtiene el usuario autenticado y su ID desde la solicitud.

@@ -1,15 +1,18 @@
-import { getBookings } from "@/lib/bookings";
-import { getServices } from "@/lib/services";
+import { getBookings, getBookingsForUser } from "@/lib/bookings";
+import { getServices, getServicesForUser } from "@/lib/services";
 import { getBusinessConfig } from "@/lib/business";
 import { isSupabaseConfigured } from "@/lib/db";
+import { getServerUserId } from "@/lib/api-auth";
 import { BookingsManager } from "@/components/BookingsManager";
 
 export const dynamic = "force-dynamic";
 
 export default async function ReservasPage() {
+  const userId = await getServerUserId();
+  const scoped = isSupabaseConfigured() && userId;
   const [bookings, services, config] = await Promise.all([
-    getBookings(),
-    getServices(true),
+    scoped ? getBookingsForUser(userId) : getBookings(),
+    scoped ? getServicesForUser(userId, true) : getServices(true),
     getBusinessConfig(),
   ]);
 

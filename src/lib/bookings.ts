@@ -215,14 +215,20 @@ export { demoServices };
 // ════════════════════════════════════════════════════════════════
 
 export async function getBookingsForUser(userId: string): Promise<Booking[]> {
-  if (!isSupabaseConfigured()) return [];
+  if (!isSupabaseConfigured()) {
+    return [...demoBookings].sort((a, b) =>
+      (b.scheduled_at ?? b.created_at).localeCompare(a.scheduled_at ?? a.created_at)
+    );
+  }
   const sb = supabaseAdmin();
   const { data } = await sb
     .from("bookings")
-    .select("*")
+    .select("*, service:services(name)")
     .eq("user_id", userId)
-    .order("scheduled_at", { ascending: true });
-  return (data ?? []) as Booking[];
+    .order("scheduled_at", { ascending: false, nullsFirst: false });
+  return ((data ?? []) as (Booking & { service?: { name?: string } | null })[]).map(
+    (b) => ({ ...b, service_name: b.service?.name ?? null })
+  );
 }
 
 export async function createBookingForUser(

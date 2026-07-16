@@ -61,3 +61,52 @@ export async function deleteContactService(id: string): Promise<void> {
   const sb = supabaseAdmin();
   await sb.from("contact_services").delete().eq("id", id);
 }
+
+// ════════════════════════════════════════════════════════════════
+// ─── Multi-User Functions (con user_id isolation) ──────────────
+// ════════════════════════════════════════════════════════════════
+
+export async function assignServiceForUser(
+  userId: string,
+  input: {
+    contact_id: string;
+    service_id: string;
+    status?: ContactServiceStatus;
+    notes?: string | null;
+  }
+): Promise<ContactService> {
+  const sb = supabaseAdmin();
+  const { data, error } = await sb
+    .from("contact_services")
+    .insert({
+      contact_id: input.contact_id,
+      service_id: input.service_id,
+      status: input.status ?? "contratado",
+      notes: input.notes ?? null,
+      user_id: userId,
+    })
+    .select("*, service:services(name, price_cents, currency)")
+    .single();
+  if (error) throw error;
+  const cs = data as ContactService & { service?: { name?: string; price_cents?: number; currency?: string } | null };
+  return {
+    ...cs,
+    service_name: cs.service?.name ?? null,
+    service_price_cents: cs.service?.price_cents ?? null,
+    service_currency: cs.service?.currency ?? null,
+  };
+}
+
+export async function updateContactServiceStatusForUser(
+  userId: string,
+  id: string,
+  status: ContactServiceStatus
+): Promise<void> {
+  const sb = supabaseAdmin();
+  await sb.from("contact_services").update({ status }).eq("id", id).eq("user_id", userId);
+}
+
+export async function deleteContactServiceForUser(userId: string, id: string): Promise<void> {
+  const sb = supabaseAdmin();
+  await sb.from("contact_services").delete().eq("id", id).eq("user_id", userId);
+}

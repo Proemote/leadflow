@@ -1,14 +1,17 @@
-import { getOpportunities } from "@/lib/opportunities";
-import { getCustomers } from "@/lib/customers";
+import { getOpportunities, getOpportunitiesForUser } from "@/lib/opportunities";
+import { getCustomers, getCustomersForUser } from "@/lib/customers";
 import { isSupabaseConfigured } from "@/lib/db";
+import { getServerUserId } from "@/lib/api-auth";
 import { KanbanBoard } from "@/components/KanbanBoard";
 
 export const dynamic = "force-dynamic";
 
 export default async function OportunidadesPage() {
+  const userId = await getServerUserId();
+  const scoped = isSupabaseConfigured() && userId;
   const [{ opportunities }, { customers }] = await Promise.all([
-    getOpportunities(),
-    getCustomers(),
+    scoped ? getOpportunitiesForUser(userId) : getOpportunities(),
+    scoped ? getCustomersForUser(userId) : getCustomers(),
   ]);
 
   const contacts = customers

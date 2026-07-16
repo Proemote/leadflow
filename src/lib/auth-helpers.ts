@@ -18,6 +18,19 @@ export async function signUp(email: string, password: string, fullName: string, 
   return { data, error };
 }
 
+export async function signInWithGoogle() {
+  const supabase = createSupabaseBrowser();
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${window.location.origin}/api/auth/callback?next=/dashboard`,
+    },
+  });
+
+  return { data, error };
+}
+
 export async function signIn(email: string, password: string) {
   const supabase = createSupabaseBrowser();
   
@@ -25,6 +38,24 @@ export async function signIn(email: string, password: string) {
     email,
     password,
   });
+
+  return { data, error };
+}
+
+export async function resetPasswordForEmail(email: string) {
+  const supabase = createSupabaseBrowser();
+
+  const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/api/auth/callback?next=/reset-password`,
+  });
+
+  return { data, error };
+}
+
+export async function updatePassword(password: string) {
+  const supabase = createSupabaseBrowser();
+
+  const { data, error } = await supabase.auth.updateUser({ password });
 
   return { data, error };
 }

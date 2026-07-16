@@ -1,10 +1,13 @@
-import { getConversations } from "@/lib/db";
+import { getConversations, getConversationsForUser, isSupabaseConfigured } from "@/lib/db";
+import { getServerUserId } from "@/lib/api-auth";
 import { ConversationsList } from "@/components/ConversationsList";
 
 export const dynamic = "force-dynamic";
 
 export default async function ConversationsPage() {
-  const items = await getConversations();
+  const userId = await getServerUserId();
+  const items =
+    isSupabaseConfigured() && userId ? await getConversationsForUser(userId) : await getConversations();
   return (
     <div className="space-y-6">
       <div>

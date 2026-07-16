@@ -470,6 +470,108 @@ export async function getOrCreateContactForUser(
   return data as Contact;
 }
 
+export async function getDashboardMetricsForUser(userId: string): Promise<DashboardMetrics> {
+  let contacts: Contact[];
+  let leads: Lead[];
+  let messageCount: number;
+
+  if (!isSupabaseConfigured()) {
+    contacts = demoContacts;
+    leads = demoLeads;
+    messageCount = Object.values(demoMessages).reduce((a, m) => a + m.length, 0);
+  } else {
+    const sb = supabaseAdmin();
+    const [{ data: c }, { data: l }, { count }] = await Promise.all([
+      sb.from("contacts").select("*").eq("user_id", userId),
+      sb.from("leads").select("*").eq("user_id", userId),
+      sb.from("messages").select("*", { count: "exact", head: true }).eq("user_id", userId),
+    ]);
+    contacts = (c as Contact[]) ?? [];
+    leads = (l as Lead[]) ?? [];
+    messageCount = count ?? 0;
+  }
+
+  const hot = leads.filter((l) => l.score === "hot").length;
+  const warm = leads.filter((l) => l.score === "warm").length;
+  const cold = leads.filter((l) => l.score === "cold").length;
+  const total = leads.length || 1;
+
+  const sourceMap = new Map<string, number>();
+  for (const c of contacts) {
+    const key = c.ad_source ?? "Directo";
+    sourceMap.set(key, (sourceMap.get(key) ?? 0) + 1);
+  }
+  const sources = [...sourceMap.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count);
+
+  return {
+    activeLeads: leads.length,
+    hot,
+    warm,
+    cold,
+    totalContacts: contacts.length,
+    totalMessages: messageCount,
+    sources,
+    hotPct: Math.round((hot / total) * 100),
+  };
+}
+
+export async function getWeeklyActivityForUser(
+  userId: string
+): Promise<{ label: string; value: number }[]> {
+  const weeks = [0, 1, 2, 3]; // W4..W1 (más viejo a más nuevo)
+  if (!isSupabaseConfigured()) {
+    return [
+      { label: "S1", value: 38 },
+      { label: "S2", value: 52 },
+      { label: "S3", value: 74 },
+      { label: "S4", value: 61 },
+    ];
+  }
+  const sb = supabaseAdmin();
+  const now = Date.now();
+  const WEEK = 7 * 24 * 60 * 60 * 1000;
+  const out: { label: string; value: number }[] = [];
+  for (const w of [...weeks].reverse()) {
+    const start = new Date(now - (w + 1) * WEEK).toISOString();
+    const end = new Date(now - w * WEEK).toISOString();
+    const { count } = await sb
+      .from("messages")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .gte("created_at", start)
+      .lt("created_at", end);
+    out.push({ label: `S${4 - w}`, value: count ?? 0 });
+  }
+  return out;
+}
+
+export async function getRecentMessagesForUser(
+  userId: string,
+  contactId: string,
+  limit = 20
+): Promise<Message[]> {
+  const sb = supabaseAdmin();
+  const { data } = await sb
+    .from("messages")
+    .select("*")
+    .eq("contact_id", contactId)
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  return ((data ?? []) as Message[]).reverse();
+}
+
+export async function setContactFlagForUser(
+  userId: string,
+  contactId: string,
+  patch: Partial<Pick<Contact, "blocked" | "bot_enabled">>
+): Promise<void> {
+  const sb = supabaseAdmin();
+  await sb.from("contacts").update(patch).eq("id", contactId).eq("user_id", userId);
+}
+
 export async function upsertLeadForUser(
   userId: string,
   contactId: string,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/admin";
 import { isBrevoConfigured, importContactsToBrevo } from "@/lib/brevo";
 import type { ImportRow } from "@/lib/import-parse";
+import { withAuth } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,7 +23,7 @@ export interface ImportResult {
   brevo: { sent: number; processId: number | null; error: string | null } | null;
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest, userId: string) => {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ error: "Supabase no configurado (modo demo)." }, { status: 400 });
   }
@@ -60,6 +61,7 @@ export async function POST(req: NextRequest) {
       const { data } = await sb
         .from("contacts")
         .select("email")
+        .eq("user_id", userId)
         .in("email", emails.slice(i, i + INSERT_CHUNK));
       for (const c of data ?? []) if (c.email) existingEmails.add(String(c.email).toLowerCase());
     }
@@ -67,6 +69,7 @@ export async function POST(req: NextRequest) {
       const { data } = await sb
         .from("contacts")
         .select("phone")
+        .eq("user_id", userId)
         .in("phone", phones.slice(i, i + INSERT_CHUNK));
       for (const c of data ?? []) if (c.phone) existingPhones.add(String(c.phone));
     }
@@ -103,6 +106,7 @@ export async function POST(req: NextRequest) {
         notes: r.notes || null,
         tags,
         ad_source: "importacion_masiva",
+        user_id: userId,
       }));
       const { data, error } = await sb.from("contacts").insert(chunk).select("id");
       if (error) throw error;
@@ -153,4 +157,4 @@ export async function POST(req: NextRequest) {
     console.error("[POST /api/customers/import]", err);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
-}
+});

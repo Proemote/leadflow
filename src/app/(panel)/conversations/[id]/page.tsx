@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { getConversation, isSupabaseConfigured } from "@/lib/db";
+import { getConversation, getConversationForUser, isSupabaseConfigured } from "@/lib/db";
+import { getServerUserId } from "@/lib/api-auth";
 import { ConversationView } from "@/components/ConversationView";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,9 @@ export default async function ConversationDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const data = await getConversation(id);
+  const userId = await getServerUserId();
+  const data =
+    isSupabaseConfigured() && userId ? await getConversationForUser(userId, id) : await getConversation(id);
   if (!data) notFound();
 
   return (

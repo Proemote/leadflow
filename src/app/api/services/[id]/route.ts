@@ -1,35 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isSupabaseConfigured } from "@/lib/db";
-import { updateService, deleteService } from "@/lib/services";
+import { updateServiceForUser, deleteServiceForUser } from "@/lib/services";
+import { withAuth } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function PATCH(
-  req: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
-) {
+export const PATCH = withAuth(async (req: NextRequest, userId: string) => {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ error: "Supabase no configurado (modo demo)." }, { status: 400 });
   }
-  const { id } = await ctx.params;
+  const id = req.nextUrl.pathname.split("/").pop()!;
   const b = await req.json();
   const patch: Record<string, unknown> = {};
   for (const k of ["name", "description", "price_cents", "currency", "duration_min", "category", "active"]) {
     if (k in b) patch[k] = b[k];
   }
-  const service = await updateService(id, patch);
+  const service = await updateServiceForUser(userId, id, patch);
   return NextResponse.json({ service });
-}
+});
 
-export async function DELETE(
-  _req: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
-) {
+export const DELETE = withAuth(async (req: NextRequest, userId: string) => {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ error: "Supabase no configurado (modo demo)." }, { status: 400 });
   }
-  const { id } = await ctx.params;
-  await deleteService(id);
+  const id = req.nextUrl.pathname.split("/").pop()!;
+  await deleteServiceForUser(userId, id);
   return NextResponse.json({ ok: true });
-}
+});

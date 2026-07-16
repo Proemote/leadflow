@@ -1,11 +1,14 @@
-import { getCustomers } from "@/lib/customers";
+import { getCustomers, getCustomersForUser } from "@/lib/customers";
 import { isSupabaseConfigured } from "@/lib/db";
+import { getServerUserId } from "@/lib/api-auth";
 import { ClientesList } from "@/components/ClientesList";
 
 export const dynamic = "force-dynamic";
 
 export default async function ContactosPage() {
-  const { customers, aggregate } = await getCustomers();
+  const userId = await getServerUserId();
+  const { customers, aggregate } =
+    isSupabaseConfigured() && userId ? await getCustomersForUser(userId) : await getCustomers();
   return (
     <div className="space-y-6">
       <div>

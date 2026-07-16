@@ -1,37 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isSupabaseConfigured } from "@/lib/db";
-import { updateBookingStatus, deleteBooking } from "@/lib/bookings";
+import { updateBookingStatusForUser, deleteBookingForUser } from "@/lib/bookings";
 import { BookingStatus } from "@/lib/types";
+import { withAuth } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const VALID: BookingStatus[] = ["pending", "confirmed", "cancelled", "done"];
 
-export async function PATCH(
-  req: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
-) {
+export const PATCH = withAuth(async (req: NextRequest, userId: string) => {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ error: "Supabase no configurado (modo demo)." }, { status: 400 });
   }
-  const { id } = await ctx.params;
+  const id = req.nextUrl.pathname.split("/").pop()!;
   const { status } = await req.json();
   if (!VALID.includes(status)) {
     return NextResponse.json({ error: "Estado no válido." }, { status: 400 });
   }
-  await updateBookingStatus(id, status);
+  await updateBookingStatusForUser(userId, id, status);
   return NextResponse.json({ ok: true });
-}
+});
 
-export async function DELETE(
-  _req: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
-) {
+export const DELETE = withAuth(async (req: NextRequest, userId: string) => {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ error: "Supabase no configurado (modo demo)." }, { status: 400 });
   }
-  const { id } = await ctx.params;
-  await deleteBooking(id);
+  const id = req.nextUrl.pathname.split("/").pop()!;
+  await deleteBookingForUser(userId, id);
   return NextResponse.json({ ok: true });
-}
+});

@@ -155,16 +155,22 @@ export async function getOpportunitiesForUser(userId: string): Promise<{
   opportunities: Opportunity[];
   metrics: { count: number; valueCents: number };
 }> {
-  if (!isSupabaseConfigured()) return { opportunities: [], metrics: { count: 0, valueCents: 0 } };
+  let opportunities: Opportunity[];
 
-  const sb = supabaseAdmin();
-  const { data: opps } = await sb
-    .from("opportunities")
-    .select("*")
-    .eq("user_id", userId)
-    .order("expected_close", { ascending: false, nullsFirst: false });
+  if (!isSupabaseConfigured()) {
+    opportunities = [...demoOpportunities];
+  } else {
+    const sb = supabaseAdmin();
+    const { data } = await sb
+      .from("opportunities")
+      .select("*, contact:contacts(name)")
+      .eq("user_id", userId)
+      .order("updated_at", { ascending: false });
+    opportunities = ((data ?? []) as (Opportunity & { contact?: { name?: string } | null })[]).map(
+      (o) => ({ ...o, contact_name: o.contact?.name ?? null })
+    );
+  }
 
-  const opportunities = (opps ?? []) as Opportunity[];
   const count = opportunities.length;
   const valueCents = opportunities.reduce((acc, o) => acc + o.value_cents, 0);
 

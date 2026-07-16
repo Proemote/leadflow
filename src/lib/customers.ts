@@ -303,7 +303,7 @@ export async function getCustomerForUser(userId: string, id: string): Promise<{
 
 export async function createContactForUser(
   userId: string,
-  input: Omit<Contact, "id" | "created_at" | "user_id">
+  input: Partial<Omit<Contact, "id" | "created_at" | "user_id">>
 ): Promise<Contact> {
   const sb = supabaseAdmin();
   const { data, error } = await sb
@@ -362,4 +362,26 @@ export async function addOperationForUser(
     .single();
   if (error) throw error;
   return data as Operation;
+}
+
+export async function updateOperationForUser(
+  userId: string,
+  id: string,
+  patch: Partial<Pick<Operation, "concept" | "amount_cents" | "status">>
+): Promise<Operation> {
+  const sb = supabaseAdmin();
+  const { data, error } = await sb
+    .from("operations")
+    .update(patch)
+    .eq("id", id)
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as Operation;
+}
+
+export async function deleteOperationForUser(userId: string, id: string): Promise<void> {
+  const sb = supabaseAdmin();
+  await sb.from("operations").delete().eq("id", id).eq("user_id", userId);
 }

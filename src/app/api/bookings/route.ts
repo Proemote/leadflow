@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isSupabaseConfigured } from "@/lib/db";
-import { createBooking } from "@/lib/bookings";
-import { createContact } from "@/lib/customers";
+import { createBookingForUser } from "@/lib/bookings";
+import { createContactForUser } from "@/lib/customers";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { withAuth } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest, userId: string) => {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ error: "Supabase no configurado (modo demo)." }, { status: 400 });
   }
@@ -21,17 +22,18 @@ export async function POST(req: NextRequest) {
     if (!contactId) {
       const phone = b.customer_phone?.trim() || null;
       if (phone) {
-        // Buscar por teléfono primero
+        // Buscar por teléfono primero (dentro de los contactos del usuario)
         const sb = supabaseAdmin();
         const { data: existing } = await sb
           .from("contacts")
           .select("id")
           .eq("phone", phone)
+          .eq("user_id", userId)
           .maybeSingle();
         contactId = existing?.id ?? null;
       }
       if (!contactId) {
-        const contact = await createContact({
+        const contact = await createContactForUser(userId, {
           name: b.customer_name.trim(),
           phone: b.customer_phone?.trim() || null,
           ad_source: "Agenda",
@@ -40,7 +42,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const booking = await createBooking({
+    const booking = await createBookingForUser(userId, {
       service_id: b.service_id || null,
       customer_name: b.customer_name.trim(),
       customer_phone: b.customer_phone?.trim() || null,
@@ -61,4 +63,4 @@ export async function POST(req: NextRequest) {
     const msg = err instanceof Error ? err.message : "error";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
-}
+});

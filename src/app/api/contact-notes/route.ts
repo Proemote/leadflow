@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/admin";
+import { withAuth } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest, userId: string) => {
   try {
     let b: Record<string, unknown>;
     try {
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
     const sb = supabaseAdmin();
     const { data, error } = await sb
       .from("contact_notes")
-      .insert({ contact_id: contactId, content })
+      .insert({ contact_id: contactId, content, user_id: userId })
       .select()
       .single();
 
@@ -52,9 +53,9 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
-export async function DELETE(req: NextRequest) {
+export const DELETE = withAuth(async (req: NextRequest, userId: string) => {
   try {
     const url = new URL(req.url);
     const noteId = url.searchParams.get("id");
@@ -74,7 +75,8 @@ export async function DELETE(req: NextRequest) {
     const { error } = await sb
       .from("contact_notes")
       .delete()
-      .eq("id", noteId);
+      .eq("id", noteId)
+      .eq("user_id", userId);
 
     if (error) {
       console.error("[contact-notes DELETE] Error:", error);
@@ -90,4 +92,4 @@ export async function DELETE(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

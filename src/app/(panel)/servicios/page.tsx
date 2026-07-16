@@ -1,11 +1,14 @@
-import { getServices } from "@/lib/services";
+import { getServices, getServicesForUser } from "@/lib/services";
 import { isSupabaseConfigured } from "@/lib/db";
+import { getServerUserId } from "@/lib/api-auth";
 import { ServicesManager } from "@/components/ServicesManager";
 
 export const dynamic = "force-dynamic";
 
 export default async function ServiciosPage() {
-  const services = await getServices();
+  const userId = await getServerUserId();
+  const services =
+    isSupabaseConfigured() && userId ? await getServicesForUser(userId) : await getServices();
   return (
     <div className="space-y-6">
       <div>
