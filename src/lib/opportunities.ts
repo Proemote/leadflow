@@ -1,5 +1,5 @@
 import { supabaseAdmin, isSupabaseConfigured } from "./supabase/admin";
-import { Opportunity, PipelineStage, TERMINAL_STAGES } from "./types";
+import { Opportunity, Operation, PipelineStage, TERMINAL_STAGES } from "./types";
 import { demoOpportunities } from "./demo";
 
 export interface PipelineMetrics {
