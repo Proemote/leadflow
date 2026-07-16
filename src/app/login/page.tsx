@@ -16,6 +16,8 @@ export default function LoginPage() {
   const [companyName, setCompanyName] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [msg, setMsg] = useState("");
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
+  const [signupEmail, setSignupEmail] = useState("");
 
   const configured =
     typeof process.env.NEXT_PUBLIC_SUPABASE_URL === "string" &&
@@ -52,20 +54,58 @@ export default function LoginPage() {
     setMsg("");
 
     try {
-      const { error } = await signUp(email, password, fullName, companyName);
+      const { data, error } = await signUp(email, password, fullName, companyName);
       if (error) throw error;
-      setStatus("idle");
-      setMsg("");
-      setEmail("");
-      setPassword("");
-      setFullName("");
-      setCompanyName("");
-      setTab("login");
-      setMsg("✓ Cuenta creada. Ahora inicia sesión.");
+
+      // Sin sesión activa tras signUp = requiere confirmar el email antes de poder entrar
+      if (!data.session) {
+        setSignupEmail(email);
+        setAwaitingConfirmation(true);
+        setStatus("idle");
+        setMsg("");
+        setEmail("");
+        setPassword("");
+        setFullName("");
+        setCompanyName("");
+        return;
+      }
+
+      // Confirmación de email desactivada en Supabase → sesión ya activa
+      router.push("/dashboard");
     } catch (err) {
       setStatus("error");
       setMsg(err instanceof Error ? err.message : "Error al crear cuenta");
     }
+  }
+
+  if (awaitingConfirmation) {
+    return (
+      <div className="min-h-screen grid place-items-center px-4">
+        <div className="panel p-8 w-full max-w-sm text-center">
+          <div className="flex flex-col items-center mb-4">
+            <Logo size={56} />
+            <h1 className="text-2xl font-bold gradient-text mt-4">Revisa tu correo</h1>
+          </div>
+          <p className="text-sm text-violet-200 mb-2">
+            Te hemos enviado un enlace de confirmación a
+          </p>
+          <p className="text-sm font-semibold text-violet-50 mb-4">{signupEmail}</p>
+          <p className="text-xs text-violet-300/60 mb-6">
+            Haz clic en el enlace del correo para activar tu cuenta. Después podrás iniciar sesión con tu email y contraseña.
+          </p>
+          <button
+            type="button"
+            className="btn-secondary w-full"
+            onClick={() => {
+              setAwaitingConfirmation(false);
+              setTab("login");
+            }}
+          >
+            Volver a iniciar sesión
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -194,9 +234,6 @@ export default function LoginPage() {
             </button>
             {status === "error" && msg && (
               <p className="text-sm text-amber-300 text-center">{msg}</p>
-            )}
-            {msg && status === "idle" && (
-              <p className="text-sm text-emerald-300 text-center">{msg}</p>
             )}
           </form>
         )}

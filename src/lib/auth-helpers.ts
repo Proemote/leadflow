@@ -2,7 +2,7 @@ import { createSupabaseBrowser } from "./supabase/browser";
 
 export async function signUp(email: string, password: string, fullName: string, companyName: string) {
   const supabase = createSupabaseBrowser();
-  
+
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -11,6 +11,7 @@ export async function signUp(email: string, password: string, fullName: string, 
         full_name: fullName,
         company_name: companyName,
       },
+      emailRedirectTo: `${window.location.origin}/api/auth/callback?next=/dashboard`,
     },
   });
 
