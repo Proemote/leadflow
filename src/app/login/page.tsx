@@ -4,6 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import { signIn, signUp } from "@/lib/auth-helpers";
+import {
+  AuthLayout,
+  Button,
+  Input,
+  Label,
+  PasswordInput,
+} from "@/components/ui/auth-fuse";
 
 type Tab = "login" | "signup";
 
@@ -22,6 +29,12 @@ export default function LoginPage() {
   const configured =
     typeof process.env.NEXT_PUBLIC_SUPABASE_URL === "string" &&
     process.env.NEXT_PUBLIC_SUPABASE_URL.length > 0;
+
+  function switchTab(next: Tab) {
+    setTab(next);
+    setStatus("idle");
+    setMsg("");
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -80,175 +93,168 @@ export default function LoginPage() {
 
   if (awaitingConfirmation) {
     return (
-      <div className="min-h-screen grid place-items-center px-4">
-        <div className="panel p-8 w-full max-w-sm text-center">
-          <div className="flex flex-col items-center mb-4">
+      <AuthLayout>
+        <div className="mx-auto grid w-[350px] gap-6 text-center">
+          <div className="flex flex-col items-center gap-2">
             <Logo size={56} />
-            <h1 className="text-2xl font-bold gradient-text mt-4">Revisa tu correo</h1>
+            <h1 className="mt-2 text-2xl font-bold text-foreground">Revisa tu correo</h1>
           </div>
-          <p className="text-sm text-violet-200 mb-2">
-            Te hemos enviado un enlace de confirmación a
+          <p className="text-sm text-muted-foreground">
+            Te hemos enviado un enlace de confirmación a{" "}
+            <span className="font-semibold text-foreground">{signupEmail}</span>
           </p>
-          <p className="text-sm font-semibold text-violet-50 mb-4">{signupEmail}</p>
-          <p className="text-xs text-violet-300/60 mb-6">
-            Haz clic en el enlace del correo para activar tu cuenta. Después podrás iniciar sesión con tu email y contraseña.
+          <p className="text-xs text-muted-foreground/70">
+            Haz clic en el enlace del correo para activar tu cuenta. Después podrás
+            iniciar sesión con tu email y contraseña.
           </p>
-          <button
+          <Button
             type="button"
-            className="btn-secondary w-full"
+            variant="outline"
             onClick={() => {
               setAwaitingConfirmation(false);
-              setTab("login");
+              switchTab("login");
             }}
           >
             Volver a iniciar sesión
-          </button>
+          </Button>
         </div>
-      </div>
+      </AuthLayout>
     );
   }
 
   return (
-    <div className="min-h-screen grid place-items-center px-4">
-      <div className="panel p-8 w-full max-w-sm">
-        <div className="flex flex-col items-center text-center mb-6">
+    <AuthLayout>
+      <div className="mx-auto grid w-[350px] gap-8">
+        <div className="flex flex-col items-center gap-2 text-center">
           <Logo size={56} />
-          <h1 className="text-2xl font-bold gradient-text mt-4">LeadFlow</h1>
-          <p className="text-sm text-violet-300/60 mt-1">
-            CRM + WhatsApp IA para tu negocio
+          <h1 className="mt-2 text-2xl font-bold text-foreground">
+            {tab === "login" ? "Accede a LeadFlow" : "Crea tu cuenta"}
+          </h1>
+          <p className="text-balance text-sm text-muted-foreground">
+            {tab === "login"
+              ? "CRM + WhatsApp IA para tu negocio"
+              : "Empieza a gestionar tus clientes con LeadFlow"}
           </p>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6">
-          <button
-            type="button"
-            onClick={() => {
-              setTab("login");
-              setStatus("idle");
-              setMsg("");
-            }}
-            className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-              tab === "login"
-                ? "bg-violet-500/20 text-violet-200 border border-violet-500/30"
-                : "bg-transparent text-violet-300/50 hover:text-violet-300"
-            }`}
-          >
-            Iniciar sesión
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setTab("signup");
-              setStatus("idle");
-              setMsg("");
-            }}
-            className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-              tab === "signup"
-                ? "bg-violet-500/20 text-violet-200 border border-violet-500/30"
-                : "bg-transparent text-violet-300/50 hover:text-violet-300"
-            }`}
-          >
-            Crear cuenta
-          </button>
-        </div>
-
-        {/* Login Tab */}
-        {tab === "login" && (
-          <form onSubmit={handleLogin} className="space-y-3">
-            <input
-              type="email"
+        {tab === "login" ? (
+          <form onSubmit={handleLogin} className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="tu@correo.com"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+            <PasswordInput
+              name="password"
+              label="Contraseña"
+              placeholder="Tu contraseña"
               required
-              className="input"
-              placeholder="tu@correo.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <input
-              type="password"
-              required
-              className="input"
-              placeholder="Contraseña"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-            <button
-              type="submit"
-              className="btn-primary w-full"
-              disabled={status === "loading"}
-            >
+            <Button type="submit" variant="outline" className="mt-2" disabled={status === "loading"}>
               {status === "loading" ? "Entrando…" : "Entrar"}
-            </button>
+            </Button>
             {status === "error" && msg && (
-              <p className="text-sm text-amber-300 text-center">{msg}</p>
+              <p className="text-center text-sm text-destructive">{msg}</p>
             )}
             {!configured && (
-              <p className="text-xs text-violet-300/50 text-center">
+              <p className="text-center text-xs text-muted-foreground">
                 (Modo demostración activado)
               </p>
             )}
           </form>
-        )}
-
-        {/* Signup Tab */}
-        {tab === "signup" && (
-          <form onSubmit={handleSignUp} className="space-y-3">
-            <input
-              type="text"
+        ) : (
+          <form onSubmit={handleSignUp} className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="fullName">Nombre completo</Label>
+              <Input
+                id="fullName"
+                name="fullName"
+                type="text"
+                placeholder="Tu nombre completo"
+                required
+                autoComplete="name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="companyName">Nombre de tu negocio</Label>
+              <Input
+                id="companyName"
+                name="companyName"
+                type="text"
+                placeholder="Nombre de tu negocio"
+                required
+                autoComplete="organization"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="signupEmail">Email</Label>
+              <Input
+                id="signupEmail"
+                name="email"
+                type="email"
+                placeholder="tu@correo.com"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+            <PasswordInput
+              name="password"
+              label="Contraseña"
+              placeholder="Mínimo 6 caracteres"
               required
-              className="input"
-              placeholder="Tu nombre completo"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-            />
-            <input
-              type="text"
-              required
-              className="input"
-              placeholder="Nombre de tu negocio"
-              value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-            />
-            <input
-              type="email"
-              required
-              className="input"
-              placeholder="tu@correo.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <input
-              type="password"
-              required
-              className="input"
-              placeholder="Contraseña (mínimo 6 caracteres)"
+              autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-            <button
-              type="submit"
-              className="btn-primary w-full"
-              disabled={status === "loading"}
-            >
+            <Button type="submit" variant="outline" className="mt-2" disabled={status === "loading"}>
               {status === "loading" ? "Creando…" : "Crear cuenta"}
-            </button>
+            </Button>
             {status === "error" && msg && (
-              <p className="text-sm text-amber-300 text-center">{msg}</p>
+              <p className="text-center text-sm text-destructive">{msg}</p>
             )}
           </form>
         )}
 
+        <div className="text-center text-sm text-muted-foreground">
+          {tab === "login" ? "¿No tienes cuenta?" : "¿Ya tienes cuenta?"}{" "}
+          <Button
+            type="button"
+            variant="link"
+            className="pl-1 text-foreground"
+            onClick={() => switchTab(tab === "login" ? "signup" : "login")}
+          >
+            {tab === "login" ? "Crear cuenta" : "Iniciar sesión"}
+          </Button>
+        </div>
+
         {!configured && (
-          <div className="mt-6 pt-6 border-t border-violet-500/10 text-center">
-            <p className="text-xs text-violet-300/50 mb-3">
+          <div className="border-t border-border pt-6 text-center">
+            <p className="mb-3 text-xs text-muted-foreground">
               O entra en modo demostración:
             </p>
-            <a href="/dashboard" className="btn-secondary w-full text-center">
-              Demo Dashboard →
-            </a>
+            <Button asChild variant="secondary" className="w-full">
+              <a href="/dashboard">Demo Dashboard →</a>
+            </Button>
           </div>
         )}
       </div>
-    </div>
+    </AuthLayout>
   );
 }

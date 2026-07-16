@@ -22,6 +22,35 @@
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
+/* ─── Tokens shadcn/ui, mapeados a la paleta violeta de LeadFlow ───
+   Se registran como colores Tailwind via @theme inline (referencian las
+   custom properties en tiempo real, para que el toggle .light los recalcule). */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
 /* ─── Variables semánticas (tema oscuro por defecto) ─── */
 :root {
   --bg-base: #07050b;
@@ -37,6 +66,28 @@
   --glow-1: rgba(124, 58, 237, 0.16);
   --glow-2: rgba(168, 85, 247, 0.10);
   --glow-3: rgba(109, 40, 217, 0.10);
+
+  /* shadcn/ui */
+  --background: #07050b;
+  --foreground: #e7e3f0;
+  --card: #110b1a;
+  --card-foreground: #e7e3f0;
+  --popover: #110b1a;
+  --popover-foreground: #e7e3f0;
+  --primary: #7c3aed;
+  --primary-foreground: #ffffff;
+  --secondary: #1d1430;
+  --secondary-foreground: #e7e3f0;
+  --muted: #160f22;
+  --muted-foreground: #b3aac6;
+  --accent: #1d1430;
+  --accent-foreground: #e7e3f0;
+  --destructive: #f43f5e;
+  --destructive-foreground: #ffffff;
+  --border: rgba(168, 85, 247, 0.14);
+  --input: rgba(168, 85, 247, 0.14);
+  --ring: #a855f7;
+  --radius: 1rem;
 }
 
 /* ─── Tema claro ─── */
@@ -61,6 +112,27 @@
   --color-violet-100: #2a2247;
   --color-violet-200: #3f3663;
   --color-violet-300: #6a6190;
+
+  /* shadcn/ui */
+  --background: #f3f1fb;
+  --foreground: #211c33;
+  --card: #ffffff;
+  --card-foreground: #211c33;
+  --popover: #ffffff;
+  --popover-foreground: #211c33;
+  --primary: #7c3aed;
+  --primary-foreground: #ffffff;
+  --secondary: #ece7f7;
+  --secondary-foreground: #211c33;
+  --muted: #ece7f7;
+  --muted-foreground: #5f5876;
+  --accent: #e4dcf5;
+  --accent-foreground: #211c33;
+  --destructive: #e11d48;
+  --destructive-foreground: #ffffff;
+  --border: rgba(124, 58, 237, 0.2);
+  --input: rgba(124, 58, 237, 0.2);
+  --ring: #7c3aed;
 }
 
 * {
