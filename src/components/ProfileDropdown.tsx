@@ -19,6 +19,7 @@ const MENU = [
 
 export function ProfileDropdown({ name, role, initials }: Props) {
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -32,15 +33,17 @@ export function ProfileDropdown({ name, role, initials }: Props) {
 
   async function handleLogout() {
     setOpen(false);
+    setLoading(true);
     try {
-      const { createBrowserClient } = await import("@supabase/ssr");
-      const sb = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      );
-      await sb.auth.signOut();
-    } catch {}
-    router.push("/login");
+      const res = await fetch("/api/auth/logout", { method: "POST" });
+      if (res.ok) {
+        router.push("/login");
+      }
+    } catch (err) {
+      console.error("Logout error:", err);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -80,26 +83,26 @@ export function ProfileDropdown({ name, role, initials }: Props) {
                 key={href}
                 href={href}
                 onClick={() => setOpen(false)}
-                className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-violet-100 hover:bg-violet-500/10 transition"
+                className="flex items-center gap-3 px-4 py-2.5 hover:bg-violet-500/10 transition text-sm text-violet-200"
               >
-                <Icon className="opacity-70 size-4" />
+                <Icon className="w-4 h-4" />
                 {label}
               </Link>
             ))}
           </div>
 
-          {/* Cerrar sesión */}
-          <div className="border-t border-[var(--color-edge-soft)] py-1.5">
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-rose-400 hover:bg-rose-500/10 transition"
-            >
-              <svg className="size-4 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2h5a2 2 0 012 2v1" />
-              </svg>
-              Cerrar sesión
-            </button>
-          </div>
+          {/* Separador */}
+          <div className="h-px bg-[var(--color-edge-soft)]" />
+
+          {/* Logout */}
+          <button
+            onClick={handleLogout}
+            disabled={loading}
+            className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-500/10 transition text-sm text-red-300 disabled:opacity-50"
+          >
+            <span className="text-xs">→</span>
+            {loading ? "Cerrando..." : "Cerrar sesión"}
+          </button>
         </div>
       )}
     </div>

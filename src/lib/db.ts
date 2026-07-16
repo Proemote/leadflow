@@ -333,3 +333,172 @@ export async function setSetting(key: string, value: string): Promise<void> {
   const sb = supabaseAdmin();
   await sb.from("settings").upsert({ key, value });
 }
+
+// ════════════════════════════════════════════════════════════════
+// ─── Multi-User Functions (con user_id isolation) ──────────────
+// Nuevas funciones que filtran por usuario. Los endpoints deben migrar aquí.
+// ════════════════════════════════════════════════════════════════
+
+export async function getConversationsForUser(
+  userId: string
+): Promise<ConversationSummary[]> {
+  if (!isSupabaseConfigured()) return buildDemoConversations();
+  const sb = supabaseAdmin();
+
+  const { data: contacts } = await sb
+    .from("contacts")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  const { data: messages } = await sb
+    .from("messages")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  const { data: leads } = await sb
+    .from("leads")
+    .select("*")
+    .eq("user_id", userId)
+    .order("qualified_at", { ascending: false });
+
+  const list: ConversationSummary[] = (contacts ?? []).map((c: Contact) => {
+    const cMsgs = (messages ?? []).filter((m: Message) => m.contact_id === c.id);
+    const lead = (leads ?? []).find((l: Lead) => l.contact_id === c.id) ?? null;
+    return {
+      contact: c,
+      lastMessage: cMsgs[0] ?? null,
+      lead,
+      unreadFromUser: 0,
+      messageCount: cMsgs.length,
+    };
+  });
+
+  return list.sort((a, b) => {
+    const ta = a.lastMessage?.created_at ?? a.contact.created_at;
+    const tb = b.lastMessage?.created_at ?? b.contact.created_at;
+    return tb.localeCompare(ta);
+  });
+}
+
+export async function getConversationForUser(
+  userId: string,
+  contactId: string
+): Promise<{
+  contact: Contact;
+  messages: Message[];
+  lead: Lead | null;
+} | null> {
+  if (!isSupabaseConfigured()) {
+    const contact = demoContacts.find((c) => c.id === contactId);
+    if (!contact) return null;
+    return {
+      contact,
+      messages: demoMessages[contactId] ?? [],
+      lead: demoLeads.find((l) => l.contact_id === contactId) ?? null,
+    };
+  }
+  const sb = supabaseAdmin();
+  const { data: contact } = await sb
+    .from("contacts")
+    .select("*")
+    .eq("id", contactId)
+    .eq("user_id", userId)
+    .single();
+  if (!contact) return null;
+
+  const { data: messages } = await sb
+    .from("messages")
+    .select("*")
+    .eq("contact_id", contactId)
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  const { data: lead } = await sb
+    .from("leads")
+    .select("*")
+    .eq("contact_id", contactId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  return {
+    contact,
+    messages: messages ?? [],
+    lead: (lead as Lead) ?? null,
+  };
+}
+
+export async function insertMessageForUser(
+  userId: string,
+  msg: Omit<Message, "id" | "created_at" | "user_id">
+): Promise<Message> {
+  const sb = supabaseAdmin();
+  const { data, error } = await sb
+    .from("messages")
+    .insert({
+      ...msg,
+      user_id: userId,
+    })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as Message;
+}
+
+export async function getOrCreateContactForUser(
+  userId: string,
+  phone: string,
+  extra?: Partial<Contact>
+): Promise<Contact> {
+  const sb = supabaseAdmin();
+  const { data: existing } = await sb
+    .from("contacts")
+    .select("*")
+    .eq("phone", phone)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (existing) return existing as Contact;
+
+  const { data, error } = await sb
+    .from("contacts")
+    .insert({ phone, user_id: userId, ...extra })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as Contact;
+}
+
+export async function upsertLeadForUser(
+  userId: string,
+  contactId: string,
+  score: LeadScore,
+  reason: string
+): Promise<Lead> {
+  const sb = supabaseAdmin();
+  const { data: existing } = await sb
+    .from("leads")
+    .select("*")
+    .eq("contact_id", contactId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (existing) {
+    const { data } = await sb
+      .from("leads")
+      .update({ score, reason, qualified_at: new Date().toISOString(), notified: existing.notified && score !== "hot" })
+      .eq("id", existing.id)
+      .eq("user_id", userId)
+      .select("*")
+      .single();
+    return data as Lead;
+  }
+  const { data, error } = await sb
+    .from("leads")
+    .insert({ contact_id: contactId, score, reason, user_id: userId })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as Lead;
+}

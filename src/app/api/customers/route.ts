@@ -1,39 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isSupabaseConfigured } from "@/lib/db";
-import { createContact } from "@/lib/customers";
+import { withAuth, getUserIdFromRequest } from "@/lib/api-auth";
+import * as db from "@/lib/customers";
+import { isSupabaseConfigured } from "@/lib/supabase/admin";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
-export async function POST(req: NextRequest) {
-  if (!isSupabaseConfigured()) {
-    return NextResponse.json({ error: "Supabase no configurado (modo demo)." }, { status: 400 });
-  }
-
-  let b: Record<string, unknown>;
+export const POST = withAuth(async (req: NextRequest, userId: string) => {
   try {
-    b = await req.json();
-  } catch {
-    return NextResponse.json({ error: "JSON inválido en el cuerpo de la solicitud" }, { status: 400 });
-  }
-
-  if (!String(b.name || "").trim()) {
-    return NextResponse.json({ error: "El nombre es obligatorio." }, { status: 400 });
-  }
-
-  try {
-    const contact = await createContact({
-      name: String(b.name).trim(),
-      phone: b.phone ? String(b.phone).trim() || null : null,
-      email: b.email ? String(b.email).trim() || null : null,
-      company: b.company ? String(b.company).trim() || null : null,
-      tags: Array.isArray(b.tags) ? b.tags : [],
-      notes: b.notes ? String(b.notes).trim() || null : null,
-    });
-    return NextResponse.json({ contact });
+    const body = await req.json();
+    const contact = await db.createContactForUser(userId, body);
+    return NextResponse.json(contact);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[POST /api/customers]", err);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    const msg = err instanceof Error ? err.message : "Error";
+    return NextResponse.json({ error: msg }, { status: 400 });
   }
-}
+});
+
+export const GET = withAuth(async (req: NextRequest, userId: string) => {
+  try {
+    if (!isSupabaseConfigured()) {
+      const result = await db.getCustomers();
+      return NextResponse.json(result);
+    }
+    const result = await db.getCustomersForUser(userId);
+    return NextResponse.json(result);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Error";
+    return NextResponse.json({ error: msg }, { status: 400 });
+  }
+});

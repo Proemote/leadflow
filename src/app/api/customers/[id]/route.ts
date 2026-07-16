@@ -1,52 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isSupabaseConfigured } from "@/lib/db";
-import { updateContact } from "@/lib/customers";
+import { withAuth } from "@/lib/api-auth";
+import * as db from "@/lib/customers";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
-export async function PATCH(
-  req: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
-) {
+export const PATCH = withAuth(async (req: NextRequest, userId: string) => {
   try {
-    if (!isSupabaseConfigured()) {
-      return NextResponse.json({ error: "Supabase no configurado (modo demo)." }, { status: 400 });
-    }
-    const { id } = await ctx.params;
-    const b = await req.json();
-    const patch: Record<string, unknown> = {};
-    for (const k of ["name", "surname", "phone", "email", "company", "tags", "notes"]) {
-      if (k in b) patch[k] = b[k];
-    }
-    const contact = await updateContact(id, patch);
-    return NextResponse.json({ contact });
+    const id = req.nextUrl.pathname.split("/").pop();
+    if (!id) throw new Error("ID requerido");
+    
+    const body = await req.json();
+    const contact = await db.updateContactForUser(userId, id, body);
+    return NextResponse.json(contact);
   } catch (err) {
-    console.error("[PATCH /api/customers/[id]]", err);
-    const message = err instanceof Error ? err.message : "Error interno del servidor";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const msg = err instanceof Error ? err.message : "Error";
+    return NextResponse.json({ error: msg }, { status: 400 });
   }
-}
+});
 
-export async function DELETE(
-  req: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
-) {
+export const DELETE = withAuth(async (req: NextRequest, userId: string) => {
   try {
-    if (!isSupabaseConfigured()) {
-      return NextResponse.json({ error: "Supabase no configurado (modo demo)." }, { status: 400 });
-    }
-    const { id } = await ctx.params;
-    const { createClient } = require("@supabase/supabase-js");
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-    await supabase.from("contacts").delete().eq("id", id);
+    const id = req.nextUrl.pathname.split("/").pop();
+    if (!id) throw new Error("ID requerido");
+    
+    const sb = (await import("@/lib/supabase/admin")).supabaseAdmin();
+    await sb.from("contacts").delete().eq("id", id).eq("user_id", userId);
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("[DELETE /api/customers/[id]]", err);
-    const message = err instanceof Error ? err.message : "Error interno del servidor";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const msg = err instanceof Error ? err.message : "Error";
+    return NextResponse.json({ error: msg }, { status: 400 });
   }
-}
+});

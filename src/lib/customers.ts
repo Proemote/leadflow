@@ -209,3 +209,157 @@ export async function addOperation(input: {
   if (error) throw error;
   return data as Operation;
 }
+
+// ════════════════════════════════════════════════════════════════
+// ─── Multi-User Functions (con user_id isolation) ──────────────
+// ════════════════════════════════════════════════════════════════
+
+async function loadContactsAndOpsForUser(userId: string): Promise<{
+  contacts: Contact[];
+  opsByContact: Map<string, Operation[]>;
+}> {
+  let contacts: Contact[];
+  let operations: Operation[];
+
+  if (!isSupabaseConfigured()) {
+    contacts = demoContacts;
+    operations = demoOperations;
+  } else {
+    const sb = supabaseAdmin();
+    const [{ data: c }, { data: o }] = await Promise.all([
+      sb.from("contacts").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
+      sb.from("operations").select("*").eq("user_id", userId),
+    ]);
+    contacts = (c ?? []) as Contact[];
+    operations = (o ?? []) as Operation[];
+  }
+
+  const opsByContact = new Map<string, Operation[]>();
+  for (const op of operations) {
+    const arr = opsByContact.get(op.contact_id) ?? [];
+    arr.push(op);
+    opsByContact.set(op.contact_id, arr);
+  }
+  return { contacts, opsByContact };
+}
+
+export async function getCustomersForUser(userId: string): Promise<CustomerListResult> {
+  let { contacts, opsByContact } = await loadContactsAndOpsForUser(userId);
+
+  const customers = contacts.map((contact) => ({
+    contact,
+    metrics: computeCustomerMetrics(contact, opsByContact.get(contact.id) ?? []),
+  }));
+
+  const clientesConCompra = customers.filter((c) => c.metrics.nOps > 0).length;
+  const ingresosTotalesCents = customers.reduce((acc, c) => acc + c.metrics.clvCents, 0);
+  const avgClv = clientesConCompra > 0 ? ingresosTotalesCents / clientesConCompra : 0;
+  const recurrentes = customers.filter((c) => c.metrics.recurrente).length;
+  const pctRecurrentes = clientesConCompra > 0 ? recurrentes / clientesConCompra : 0;
+
+  const aggregate: PortfolioAggregate = {
+    totalClientes: contacts.length,
+    clientesConCompra,
+    clvMedioCents: Math.round(avgClv),
+    pctRecurrentes,
+    ingresosTotalesCents,
+  };
+
+  return { customers, aggregate };
+}
+
+export async function getCustomerForUser(userId: string, id: string): Promise<{
+  contact: Contact;
+  operations: Operation[];
+  opportunities: Opportunity[];
+  bookings: Booking[];
+  contractedServices: ContactService[];
+} | null> {
+  const sb = supabaseAdmin();
+  const { data: contact } = await sb
+    .from("contacts")
+    .select("*")
+    .eq("id", id)
+    .eq("user_id", userId)
+    .single();
+  if (!contact) return null;
+
+  const [{ data: operations }, { data: opportunities }, { data: bookings }, { data: contractedServices }] =
+    await Promise.all([
+      sb.from("operations").select("*").eq("contact_id", id).eq("user_id", userId),
+      sb.from("opportunities").select("*").eq("contact_id", id).eq("user_id", userId),
+      sb.from("bookings").select("*").eq("contact_id", id).eq("user_id", userId),
+      sb.from("contact_services").select("*").eq("contact_id", id).eq("user_id", userId),
+    ]);
+
+  return {
+    contact: contact as Contact,
+    operations: (operations ?? []) as Operation[],
+    opportunities: (opportunities ?? []) as Opportunity[],
+    bookings: (bookings ?? []) as Booking[],
+    contractedServices: (contractedServices ?? []) as ContactService[],
+  };
+}
+
+export async function createContactForUser(
+  userId: string,
+  input: Omit<Contact, "id" | "created_at" | "user_id">
+): Promise<Contact> {
+  const sb = supabaseAdmin();
+  const { data, error } = await sb
+    .from("contacts")
+    .insert({ ...input, user_id: userId })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as Contact;
+}
+
+export async function updateContactForUser(
+  userId: string,
+  id: string,
+  patch: Partial<Contact>
+): Promise<Contact> {
+  const sb = supabaseAdmin();
+  const { data, error } = await sb
+    .from("contacts")
+    .update(patch)
+    .eq("id", id)
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as Contact;
+}
+
+export async function addOperationForUser(
+  userId: string,
+  input: {
+    contact_id: string;
+    concept: string;
+    amount_cents: number;
+    status?: string;
+    date?: string;
+    source?: string;
+    opportunity_id?: string | null;
+  }
+): Promise<Operation> {
+  const sb = supabaseAdmin();
+  const { data, error } = await sb
+    .from("operations")
+    .insert({
+      contact_id: input.contact_id,
+      concept: input.concept,
+      amount_cents: Math.max(0, Math.round(input.amount_cents)),
+      currency: "EUR",
+      status: input.status ?? "completed",
+      source: input.source ?? "manual",
+      opportunity_id: input.opportunity_id ?? null,
+      date: input.date ?? new Date().toISOString(),
+      user_id: userId,
+    })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as Operation;
+}

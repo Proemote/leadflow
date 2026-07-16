@@ -209,3 +209,71 @@ export async function deleteBooking(id: string): Promise<void> {
 }
 
 export { demoServices };
+
+// ════════════════════════════════════════════════════════════════
+// ─── Multi-User Functions (con user_id isolation) ──────────────
+// ════════════════════════════════════════════════════════════════
+
+export async function getBookingsForUser(userId: string): Promise<Booking[]> {
+  if (!isSupabaseConfigured()) return [];
+  const sb = supabaseAdmin();
+  const { data } = await sb
+    .from("bookings")
+    .select("*")
+    .eq("user_id", userId)
+    .order("scheduled_at", { ascending: true });
+  return (data ?? []) as Booking[];
+}
+
+export async function createBookingForUser(
+  userId: string,
+  input: {
+    contact_id: string | null;
+    service_id: string | null;
+    customer_name: string;
+    customer_phone?: string | null;
+    scheduled_at?: string | null;
+    duration_min?: number | null;
+    party_size?: number | null;
+    status?: "pending" | "confirmed" | "cancelled" | "done";
+    notes?: string | null;
+  }
+): Promise<Booking> {
+  const sb = supabaseAdmin();
+  const { data, error } = await sb
+    .from("bookings")
+    .insert({
+      contact_id: input.contact_id || null,
+      service_id: input.service_id || null,
+      customer_name: input.customer_name,
+      customer_phone: input.customer_phone || null,
+      scheduled_at: input.scheduled_at || null,
+      duration_min: input.duration_min || null,
+      party_size: input.party_size || null,
+      status: input.status || "pending",
+      notes: input.notes || null,
+      user_id: userId,
+    })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as Booking;
+}
+
+export async function updateBookingStatusForUser(
+  userId: string,
+  id: string,
+  status: "pending" | "confirmed" | "cancelled" | "done"
+): Promise<void> {
+  const sb = supabaseAdmin();
+  await sb
+    .from("bookings")
+    .update({ status })
+    .eq("id", id)
+    .eq("user_id", userId);
+}
+
+export async function deleteBookingForUser(userId: string, id: string): Promise<void> {
+  const sb = supabaseAdmin();
+  await sb.from("bookings").delete().eq("id", id).eq("user_id", userId);
+}

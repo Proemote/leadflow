@@ -2,16 +2,14 @@ import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * Protege el panel. Solo se activa si Supabase + ALLOWED_EMAIL_DOMAIN
- * están configurados; si no, deja pasar (modo demo local).
+ * Protege el panel. Verifica que el usuario esté autenticado.
  */
 export async function middleware(req: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const domain = process.env.ALLOWED_EMAIL_DOMAIN;
 
-  // Auth desactivada → modo demo, pasa todo
-  if (!url || !anon || !domain) return NextResponse.next();
+  // Supabase no configurado → modo demo, pasa todo
+  if (!url || !anon) return NextResponse.next();
 
   let res = NextResponse.next({ request: req });
   const supabase = createServerClient(url, anon, {
@@ -33,10 +31,8 @@ export async function middleware(req: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const email = user?.email ?? "";
-  const allowed = user && email.endsWith(`@${domain}`);
-
-  if (!allowed) {
+  // Si no hay usuario autenticado, redirigir a login
+  if (!user) {
     const loginUrl = req.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("next", req.nextUrl.pathname);

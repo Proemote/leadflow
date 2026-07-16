@@ -146,3 +146,133 @@ export async function deleteOpportunity(id: string): Promise<void> {
   const sb = supabaseAdmin();
   await sb.from("opportunities").delete().eq("id", id);
 }
+
+// ════════════════════════════════════════════════════════════════
+// ─── Multi-User Functions (con user_id isolation) ──────────────
+// ════════════════════════════════════════════════════════════════
+
+export async function getOpportunitiesForUser(userId: string): Promise<{
+  opportunities: Opportunity[];
+  metrics: { count: number; valueCents: number };
+}> {
+  if (!isSupabaseConfigured()) return { opportunities: [], metrics: { count: 0, valueCents: 0 } };
+
+  const sb = supabaseAdmin();
+  const { data: opps } = await sb
+    .from("opportunities")
+    .select("*")
+    .eq("user_id", userId)
+    .order("expected_close", { ascending: false, nullsFirst: false });
+
+  const opportunities = (opps ?? []) as Opportunity[];
+  const count = opportunities.length;
+  const valueCents = opportunities.reduce((acc, o) => acc + o.value_cents, 0);
+
+  return { opportunities, metrics: { count, valueCents } };
+}
+
+export async function createOpportunityForUser(
+  userId: string,
+  input: {
+    title: string;
+    contact_id: string | null;
+    value_cents: number;
+    probability: number;
+    stage: string;
+    expected_close: string | null;
+    owner: string | null;
+  }
+): Promise<Opportunity> {
+  const sb = supabaseAdmin();
+  const { data, error } = await sb
+    .from("opportunities")
+    .insert({
+      title: input.title,
+      contact_id: input.contact_id,
+      value_cents: input.value_cents,
+      currency: "EUR",
+      probability: input.probability,
+      stage: input.stage,
+      expected_close: input.expected_close,
+      owner: input.owner,
+      user_id: userId,
+    })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as Opportunity;
+}
+
+export async function updateOpportunityForUser(
+  userId: string,
+  id: string,
+  input: {
+    title?: string;
+    value_cents?: number;
+    probability?: number;
+    stage?: string;
+    expected_close?: string | null;
+    owner?: string | null;
+  }
+): Promise<{
+  opportunity: Opportunity;
+  operationCreated: Operation | null;
+}> {
+  const sb = supabaseAdmin();
+  const { data: opp } = await sb
+    .from("opportunities")
+    .select("*")
+    .eq("id", id)
+    .eq("user_id", userId)
+    .single();
+  if (!opp) throw new Error("Oportunidad no encontrada");
+
+  const { data: updated, error } = await sb
+    .from("opportunities")
+    .update({
+      title: input.title ?? opp.title,
+      value_cents: input.value_cents ?? opp.value_cents,
+      probability: input.probability ?? opp.probability,
+      stage: input.stage ?? opp.stage,
+      expected_close: input.expected_close !== undefined ? input.expected_close : opp.expected_close,
+      owner: input.owner ?? opp.owner,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+  if (error) throw error;
+
+  let operationCreated: Operation | null = null;
+  if (input.stage === "Ganado" && opp.stage !== "Ganado" && opp.contact_id) {
+    const { data: op, error: opError } = await sb
+      .from("operations")
+      .insert({
+        contact_id: opp.contact_id,
+        concept: `Venta: ${input.title ?? opp.title}`,
+        amount_cents: input.value_cents ?? opp.value_cents,
+        currency: "EUR",
+        status: "completed",
+        source: "opportunity",
+        opportunity_id: id,
+        date: new Date().toISOString(),
+        user_id: userId,
+      })
+      .select("*")
+      .single();
+    if (!opError) operationCreated = op as Operation;
+  }
+
+  return { opportunity: updated as Opportunity, operationCreated };
+}
+
+export async function deleteOpportunityForUser(userId: string, id: string): Promise<void> {
+  const sb = supabaseAdmin();
+  const { error } = await sb
+    .from("opportunities")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", userId);
+  if (error) throw error;
+}
