@@ -9,7 +9,7 @@ export const PATCH = withAuth(async (req: NextRequest, userId: string) => {
     
     const body = await req.json();
     const contact = await db.updateContactForUser(userId, id, body);
-    return NextResponse.json(contact);
+    return NextResponse.json({ contact });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Error";
     return NextResponse.json({ error: msg }, { status: 400 });

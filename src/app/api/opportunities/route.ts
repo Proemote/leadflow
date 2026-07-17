@@ -15,7 +15,7 @@ export const POST = withAuth(async (req: NextRequest, userId: string) => {
       expected_close: body.expected_close || null,
       owner: body.owner || null,
     });
-    return NextResponse.json(opportunity);
+    return NextResponse.json({ opportunity });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Error";
     return NextResponse.json({ error: msg }, { status: 400 });

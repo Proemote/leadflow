@@ -7,7 +7,7 @@ export const POST = withAuth(async (req: NextRequest, userId: string) => {
   try {
     const body = await req.json();
     const contact = await db.createContactForUser(userId, body);
-    return NextResponse.json(contact);
+    return NextResponse.json({ contact });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Error";
     return NextResponse.json({ error: msg }, { status: 400 });
