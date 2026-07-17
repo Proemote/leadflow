@@ -36,6 +36,18 @@ function fecha(iso: string): string {
   return new Date(iso).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function fechaHora(iso: string): string {
+  const d = new Date(iso);
+  return `${d.toLocaleDateString("es-ES", { day: "2-digit", month: "short" })}, ${d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}`;
+}
+
+type Comment = { id: string; content: string; created_at: string };
+
+type ActivityEntry =
+  | { kind: "operation"; date: string; data: Operation }
+  | { kind: "comment"; date: string; data: Comment }
+  | { kind: "booking"; date: string; data: Booking };
+
 export function CustomerDetail({
   contact: initialContact,
   operations: initialOps,
@@ -67,7 +79,7 @@ export function CustomerDetail({
   const [showAddBooking, setShowAddBooking] = useState(false);
   const [showAddService, setShowAddService] = useState(false);
   const [editingOperation, setEditingOperation] = useState<Operation | null>(null);
-  const [comments, setComments] = useState<Array<{ id: string; content: string; created_at: string }>>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [loadingComments, setLoadingComments] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
@@ -229,6 +241,16 @@ export function CustomerDetail({
     if (!demo) await fetch(`/api/contact-services/${cs.id}`, { method: "DELETE" });
   }
 
+  // Feed unificado: operaciones + comentarios + citas, ordenado por fecha desc
+  const activity = useMemo<ActivityEntry[]>(() => {
+    const entries: ActivityEntry[] = [
+      ...operations.map((o) => ({ kind: "operation" as const, date: o.date, data: o })),
+      ...comments.map((c) => ({ kind: "comment" as const, date: c.created_at, data: c })),
+      ...bookings.map((b) => ({ kind: "booking" as const, date: b.scheduled_at ?? b.created_at, data: b })),
+    ];
+    return entries.sort((a, b) => b.date.localeCompare(a.date));
+  }, [operations, comments, bookings]);
+
   return (
     <div className="space-y-6">
       <Link href="/clientes" className="inline-flex items-center gap-1.5 text-sm text-violet-300 hover:text-white">
@@ -284,207 +306,276 @@ export function CustomerDetail({
         />
       )}
 
-      {/* Métricas */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Metric label="CLV (histórico)" value={m.nOps ? formatPrice(m.clvCents) : "—"} sub={m.nOps ? undefined : "sin compras"} highlight />
-        <Metric label="Ticket medio" value={m.nOps ? formatPrice(m.aovCents) : "—"} />
-        <Metric label="Operaciones" value={String(m.nOps)} sub={m.recurrente ? "Cliente recurrente" : m.nOps === 1 ? "Primera compra" : undefined} />
-        <Metric label="Cliente desde" value={m.clienteDesde ? fecha(m.clienteDesde) : "—"} sub={m.antiguedad ?? undefined} />
-        <Metric label="Recencia" value={m.recenciaDias == null ? "—" : m.recenciaDias === 0 ? "hoy" : `hace ${m.recenciaDias} d`} sub={m.nOps ? "última compra" : undefined} />
-        <Metric label="Frecuencia media" value={m.frecuenciaMediaDias == null ? "—" : `${m.frecuenciaMediaDias} d`} sub={m.frecuenciaMediaDias == null ? "≥2 compras" : "entre compras"} />
-        <Metric label="Recurrencia" value={m.nOps ? `${Math.round(m.tasaRecurrencia * 100)}%` : "—"} />
-        <Metric label="Citas" value={String(bookings.length)} sub={bookings.filter(b => b.status === "done").length > 0 ? `${bookings.filter(b => b.status === "done").length} realizadas` : undefined} />
+      {/* Métricas: una sola tira compacta */}
+      <div className="panel overflow-x-auto">
+        <div className="flex divide-x divide-[var(--color-edge-soft)] min-w-max">
+          <StatCell label="CLV histórico" value={m.nOps ? formatPrice(m.clvCents) : "—"} sub={m.nOps ? undefined : "sin compras"} highlight />
+          <StatCell label="Ticket medio" value={m.nOps ? formatPrice(m.aovCents) : "—"} />
+          <StatCell label="Operaciones" value={String(m.nOps)} sub={m.recurrente ? "recurrente" : m.nOps === 1 ? "1ª compra" : undefined} />
+          <StatCell label="Cliente desde" value={m.clienteDesde ? fecha(m.clienteDesde) : "—"} sub={m.antiguedad ?? undefined} />
+          <StatCell label="Recencia" value={m.recenciaDias == null ? "—" : m.recenciaDias === 0 ? "hoy" : `hace ${m.recenciaDias} d`} sub={m.nOps ? "última compra" : undefined} />
+          <StatCell label="Frecuencia media" value={m.frecuenciaMediaDias == null ? "—" : `${m.frecuenciaMediaDias} d`} sub={m.frecuenciaMediaDias == null ? "≥2 compras" : "entre compras"} />
+          <StatCell label="Recurrencia" value={m.nOps ? `${Math.round(m.tasaRecurrencia * 100)}%` : "—"} />
+          <StatCell label="Citas" value={String(bookings.length)} sub={bookings.filter(b => b.status === "done").length > 0 ? `${bookings.filter(b => b.status === "done").length} realizadas` : undefined} />
+        </div>
       </div>
 
       {showForm && <AddOperationForm contactId={contact.id} demo={demo} onDone={() => { setShowForm(false); router.refresh(); }} />}
 
-      {/* Oportunidades */}
-      {opportunities.length > 0 && (
-        <div className="panel p-5">
-          <h3 className="font-semibold text-violet-50 mb-3">Oportunidades</h3>
-          <div className="divide-y divide-[var(--color-edge-soft)]">
-            {opportunities.map((o) => (
-              <div key={o.id} className="flex items-center gap-3 py-3">
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-violet-50 truncate">{o.title}</div>
-                  <div className="text-[11px] text-violet-300/60">{o.stage} · {o.probability}% · {o.expected_close ? `Cierre: ${fecha(o.expected_close + "T12:00:00")}` : "sin fecha"}</div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="size-2 rounded-full" style={{ background: stageAccent(o.stage) }} />
-                  <span className="text-sm font-semibold text-violet-100">{formatPrice(o.value_cents)}</span>
-                </div>
+      {/* Dos columnas: gestión a la izquierda, actividad a la derecha */}
+      <div className="grid grid-cols-1 lg:grid-cols-[35%_1fr] gap-6 items-start">
+        {/* Columna izquierda: listas de gestión */}
+        <div className="space-y-6">
+          {opportunities.length > 0 && (
+            <div className="panel p-5">
+              <h3 className="font-semibold text-violet-50 mb-2">Oportunidades</h3>
+              <div className="divide-y divide-[var(--color-edge-soft)]">
+                {opportunities.map((o) => (
+                  <div key={o.id} className="flex items-center gap-3 py-2">
+                    <span className="size-2 rounded-full shrink-0" style={{ background: stageAccent(o.stage) }} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium text-violet-50 truncate">{o.title}</div>
+                      <div className="text-[11px] text-violet-300/60">{o.stage} · {o.probability}%</div>
+                    </div>
+                    <span className="text-sm font-semibold text-violet-100 shrink-0">{formatPrice(o.value_cents)}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+          )}
+
+          {/* Servicios contratados */}
+          <div className="panel p-5">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-violet-50">Servicios contratados</h3>
+              <button className="btn-ghost flex items-center gap-1.5 py-1 px-2.5 text-xs" onClick={() => setShowAddService((v) => !v)}>
+                <IconPlus width={13} height={13} /> Añadir
+              </button>
+            </div>
+            {showAddService && (
+              <AddContractedServiceForm
+                contactId={contact.id}
+                services={services}
+                demo={demo}
+                onCreated={(cs) => {
+                  setContractedServices((arr) => [cs, ...arr]);
+                  setShowAddService(false);
+                }}
+                onCancel={() => setShowAddService(false)}
+              />
+            )}
+            {contractedServices.length === 0 ? (
+              <div className="flex items-center justify-between gap-3 py-2">
+                <span className="text-sm text-violet-300/50">🛠️ Sin servicios contratados</span>
+                <button className="btn-ghost text-xs py-1 px-2.5 shrink-0" onClick={() => setShowAddService(true)}>+ Añadir</button>
+              </div>
+            ) : (
+              <div className="divide-y divide-[var(--color-edge-soft)]">
+                {contractedServices.map((cs) => {
+                  const meta = CS_STATUS[cs.status];
+                  return (
+                    <div key={cs.id} className="py-2 space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-violet-50 truncate flex-1 min-w-0">{cs.service_name ?? "Servicio"}</span>
+                        <span className={`chip ${meta.cls} shrink-0`}>{meta.label}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] text-violet-300/60 truncate">
+                          {cs.service_price_cents ? formatPrice(cs.service_price_cents, cs.service_currency || undefined) : ""} {cs.notes ? `· ${cs.notes}` : ""}
+                        </span>
+                        <div className="flex gap-1.5 shrink-0">
+                          <select
+                            value={cs.status}
+                            onChange={(e) => patchServiceStatus(cs, e.target.value as ContactServiceStatus)}
+                            className="text-[11px] bg-violet-500/10 border border-[var(--color-edge)] rounded px-1.5 py-0.5 text-violet-300"
+                          >
+                            {["contratado", "completado", "cancelado"].map((s) => (
+                              <option key={s} value={s}>
+                                {CS_STATUS[s as ContactServiceStatus].label}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            className="py-1 px-1.5 text-xs rounded border border-rose-500/30 text-rose-300 hover:bg-rose-500/10"
+                            onClick={() => removeService(cs)}
+                            title="Eliminar"
+                          >
+                            <IconTrash width={13} height={13} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Citas / Reservas */}
+          <div className="panel p-5">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-violet-50">Citas y reservas</h3>
+              <button className="btn-ghost flex items-center gap-1.5 py-1 px-2.5 text-xs" onClick={() => setShowAddBooking((v) => !v)}>
+                <IconPlus width={13} height={13} /> Añadir
+              </button>
+            </div>
+            {showAddBooking && (
+              <AddBookingForm
+                contact={contact}
+                services={services}
+                businessConfig={businessConfig}
+                demo={demo}
+                onCreated={(b) => {
+                  setBookings((arr) => [b, ...arr]);
+                  setShowAddBooking(false);
+                }}
+                onCancel={() => setShowAddBooking(false)}
+              />
+            )}
+            {bookings.length === 0 ? (
+              <div className="flex items-center justify-between gap-3 py-2">
+                <span className="text-sm text-violet-300/50">📅 Sin citas pendientes</span>
+                <button className="btn-ghost text-xs py-1 px-2.5 shrink-0" onClick={() => setShowAddBooking(true)}>+ Añadir</button>
+              </div>
+            ) : (
+              <div className="divide-y divide-[var(--color-edge-soft)]">
+                {bookings.map((b) => {
+                  const s = BOOKING_STATUS[b.status];
+                  return (
+                    <div key={b.id} className="py-2 space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-violet-50 truncate flex-1 min-w-0">{b.service_name ?? b.notes ?? "Cita"}</span>
+                        <span className={`chip ${s.cls} shrink-0`}>{s.label}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] text-violet-300/60 truncate">
+                          {b.scheduled_at
+                            ? new Date(b.scheduled_at).toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+                            : "Sin fecha"}
+                        </span>
+                        <div className="flex gap-1.5 shrink-0">
+                          {b.status === "pending" && (
+                            <button className="btn-ghost py-1 px-2 text-[11px]" onClick={() => patchBookingStatus(b, "confirmed")}>Confirmar</button>
+                          )}
+                          {(b.status === "pending" || b.status === "confirmed") && (
+                            <>
+                              <button className="btn-ghost py-1 px-2 text-[11px]" onClick={() => patchBookingStatus(b, "done")}>Hecha</button>
+                              <button className="py-1 px-2 text-[11px] rounded border border-rose-500/30 text-rose-300 hover:bg-rose-500/10" onClick={() => patchBookingStatus(b, "cancelled")}>Cancelar</button>
+                            </>
+                          )}
+                          <button
+                            className="py-1 px-1.5 text-xs rounded border border-rose-500/30 text-rose-300 hover:bg-rose-500/10"
+                            onClick={() => removeBooking(b)}
+                            title="Eliminar"
+                          >
+                            <IconTrash width={13} height={13} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
-      )}
 
-      {/* Servicios contratados */}
-      <div className="panel p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-violet-50">Servicios contratados</h3>
-          <button className="btn-primary flex items-center gap-2 py-1.5 px-3 text-sm" onClick={() => setShowAddService((v) => !v)}>
-            <IconPlus width={14} height={14} /> Añadir
-          </button>
-        </div>
-        {showAddService && (
-          <AddContractedServiceForm
-            contactId={contact.id}
-            services={services}
-            demo={demo}
-            onCreated={(cs) => {
-              setContractedServices((arr) => [cs, ...arr]);
-              setShowAddService(false);
-            }}
-            onCancel={() => setShowAddService(false)}
-          />
-        )}
-        {contractedServices.length === 0 ? (
-          <p className="text-sm text-violet-300/50 py-6 text-center">Sin servicios contratados.</p>
-        ) : (
-          <div className="divide-y divide-[var(--color-edge-soft)]">
-            {contractedServices.map((cs) => {
-              const meta = CS_STATUS[cs.status];
-              return (
-                <div key={cs.id} className="flex items-center gap-3 py-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium text-violet-50 truncate">{cs.service_name ?? "Servicio"}</div>
-                    <div className="text-[11px] text-violet-300/60">
-                      {cs.service_price_cents ? formatPrice(cs.service_price_cents, cs.service_currency || undefined) : ""} {cs.notes ? `· ${cs.notes}` : ""}
+        {/* Columna derecha: Actividad (operaciones + comentarios + citas fusionados) */}
+        <div className="panel p-5">
+          <h3 className="font-semibold text-violet-50 mb-3">Actividad</h3>
+          <div className="flex gap-2 mb-1">
+            <input
+              className="input flex-1 text-sm"
+              placeholder="Agregar comentario..."
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addComment()}
+            />
+            <button className="btn-primary text-sm px-4" onClick={addComment}>Agregar</button>
+          </div>
+          {commentError && <p className="text-sm text-rose-400 mt-2">{commentError}</p>}
+
+          {loadingComments ? (
+            <p className="text-sm text-violet-300/50 py-4">Cargando actividad…</p>
+          ) : activity.length === 0 ? (
+            <div className="py-3">
+              <span className="text-sm text-violet-300/50">🕓 Sin actividad todavía</span>
+            </div>
+          ) : (
+            <div className="divide-y divide-[var(--color-edge-soft)] mt-2 max-h-[640px] overflow-y-auto">
+              {activity.map((entry) => {
+                if (entry.kind === "operation") {
+                  const o = entry.data;
+                  const s = OP_STATUS[o.status];
+                  return (
+                    <div key={`op-${o.id}`} className="flex items-start gap-3 py-2.5">
+                      <span className="text-base shrink-0" title="Operación">💰</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-medium text-violet-50 truncate">{o.concept}</span>
+                          <span className={`chip ${s.cls}`}>{s.label}</span>
+                        </div>
+                        <div className="text-[11px] text-violet-300/60">
+                          {fechaHora(o.date)}{o.source === "opportunity" ? " · desde oportunidad" : ""}
+                        </div>
+                      </div>
+                      <span className="text-sm font-semibold text-violet-50 shrink-0">{formatPrice(o.amount_cents, o.currency)}</span>
+                      <div className="flex gap-1 shrink-0">
+                        <button
+                          className="py-1 px-2 text-xs rounded border border-violet-500/30 text-violet-300 hover:bg-violet-500/10 transition"
+                          onClick={() => setEditingOperation(o)}
+                          title="Editar"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          className="py-1 px-1.5 text-xs rounded border border-rose-500/30 text-rose-300 hover:bg-rose-500/10 transition"
+                          onClick={() => deleteOperation(o)}
+                          title="Eliminar"
+                        >
+                          <IconTrash width={13} height={13} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+                if (entry.kind === "comment") {
+                  const c = entry.data;
+                  return (
+                    <div key={`cm-${c.id}`} className="flex items-start gap-3 py-2.5">
+                      <span className="text-base shrink-0" title="Comentario">💬</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-violet-50 break-words">{c.content}</p>
+                        <div className="text-[11px] text-violet-300/60">{fechaHora(c.created_at)}</div>
+                      </div>
+                      <button
+                        className="text-violet-300/40 hover:text-rose-400 transition text-xs shrink-0"
+                        onClick={() => deleteComment(c.id)}
+                        title="Eliminar comentario"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  );
+                }
+                const b = entry.data;
+                const s = BOOKING_STATUS[b.status];
+                return (
+                  <div key={`bk-${b.id}`} className="flex items-start gap-3 py-2.5">
+                    <span className="text-base shrink-0" title="Cita">📅</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium text-violet-50 truncate">{b.service_name ?? b.notes ?? "Cita"}</span>
+                        <span className={`chip ${s.cls}`}>{s.label}</span>
+                      </div>
+                      <div className="text-[11px] text-violet-300/60">{fechaHora(b.scheduled_at ?? b.created_at)}</div>
                     </div>
                   </div>
-                  <span className={`chip ${meta.cls}`}>{meta.label}</span>
-                  <div className="flex gap-1.5">
-                    <select
-                      value={cs.status}
-                      onChange={(e) => patchServiceStatus(cs, e.target.value as ContactServiceStatus)}
-                      className="text-[11px] bg-violet-500/10 border border-[var(--color-edge)] rounded px-1.5 py-0.5 text-violet-300"
-                    >
-                      {["contratado", "completado", "cancelado"].map((s) => (
-                        <option key={s} value={s}>
-                          {CS_STATUS[s as ContactServiceStatus].label}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      className="py-1 px-1.5 text-xs rounded border border-rose-500/30 text-rose-300 hover:bg-rose-500/10"
-                      onClick={() => removeService(cs)}
-                      title="Eliminar"
-                    >
-                      <IconTrash width={13} height={13} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Citas / Reservas */}
-      <div className="panel p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-violet-50">Citas y reservas</h3>
-          <button className="btn-primary flex items-center gap-2 py-1.5 px-3 text-sm" onClick={() => setShowAddBooking((v) => !v)}>
-            <IconPlus width={14} height={14} /> Añadir
-          </button>
+                );
+              })}
+            </div>
+          )}
         </div>
-        {showAddBooking && (
-          <AddBookingForm
-            contact={contact}
-            services={services}
-            businessConfig={businessConfig}
-            demo={demo}
-            onCreated={(b) => {
-              setBookings((arr) => [b, ...arr]);
-              setShowAddBooking(false);
-            }}
-            onCancel={() => setShowAddBooking(false)}
-          />
-        )}
-        {bookings.length === 0 ? (
-          <p className="text-sm text-violet-300/50 py-6 text-center">Sin citas pendientes.</p>
-        ) : (
-          <div className="divide-y divide-[var(--color-edge-soft)]">
-            {bookings.map((b) => {
-              const s = BOOKING_STATUS[b.status];
-              return (
-                <div key={b.id} className="flex items-center gap-3 py-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium text-violet-50 truncate">{b.service_name ?? b.notes ?? "Cita"}</div>
-                    <div className="text-[11px] text-violet-300/60">
-                      {b.scheduled_at
-                        ? new Date(b.scheduled_at).toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
-                        : "Sin fecha"}
-                    </div>
-                  </div>
-                  <span className={`chip ${s.cls}`}>{s.label}</span>
-                  <div className="flex gap-1.5">
-                    {b.status === "pending" && (
-                      <button className="btn-ghost py-1 px-2.5 text-xs" onClick={() => patchBookingStatus(b, "confirmed")}>Confirmar</button>
-                    )}
-                    {(b.status === "pending" || b.status === "confirmed") && (
-                      <>
-                        <button className="btn-ghost py-1 px-2.5 text-xs" onClick={() => patchBookingStatus(b, "done")}>Hecha</button>
-                        <button className="py-1 px-2.5 text-xs rounded border border-rose-500/30 text-rose-300 hover:bg-rose-500/10" onClick={() => patchBookingStatus(b, "cancelled")}>Cancelar</button>
-                      </>
-                    )}
-                    <button
-                      className="py-1 px-1.5 text-xs rounded border border-rose-500/30 text-rose-300 hover:bg-rose-500/10"
-                      onClick={() => removeBooking(b)}
-                      title="Eliminar"
-                    >
-                      <IconTrash width={13} height={13} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Operaciones */}
-      <div className="panel p-5">
-        <h3 className="font-semibold text-violet-50 mb-3">Historial de operaciones</h3>
-        {operations.length === 0 ? (
-          <p className="text-sm text-violet-300/50 py-6 text-center">Aún no hay operaciones. Añade la primera para calcular su valor.</p>
-        ) : (
-          <div className="divide-y divide-[var(--color-edge-soft)]">
-            {operations.slice(0, 10).map((o) => {
-              const s = OP_STATUS[o.status];
-              return (
-                <div key={o.id} className="flex items-center gap-3 py-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium text-violet-50 truncate">{o.concept}</div>
-                    <div className="text-[11px] text-violet-300/60">{fecha(o.date)}{o.source === "opportunity" ? " · desde oportunidad" : ""}</div>
-                  </div>
-                  <span className={`chip ${s.cls}`}>{s.label}</span>
-                  <div className="text-sm font-semibold text-violet-50 w-24 text-right">{formatPrice(o.amount_cents, o.currency)}</div>
-                  <div className="flex gap-1.5">
-                    <button
-                      className="py-1 px-2 text-xs rounded border border-violet-500/30 text-violet-300 hover:bg-violet-500/10 transition"
-                      onClick={() => setEditingOperation(o)}
-                      title="Editar"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      className="py-1 px-1.5 text-xs rounded border border-rose-500/30 text-rose-300 hover:bg-rose-500/10 transition"
-                      onClick={() => deleteOperation(o)}
-                      title="Eliminar"
-                    >
-                      <IconTrash width={13} height={13} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-        {operations.length > 10 && (
-          <p className="text-xs text-violet-300/50 mt-3 text-center">Mostrando 10 de {operations.length} operaciones</p>
-        )}
       </div>
 
       {editingOperation && (
@@ -498,61 +589,16 @@ export function CustomerDetail({
           onCancel={() => setEditingOperation(null)}
         />
       )}
-
-      {/* Comentarios */}
-      <div className="panel p-5">
-        <h3 className="font-semibold text-violet-50 mb-3">Comentarios</h3>
-        <div className="space-y-3">
-          <div className="flex gap-2">
-            <input
-              className="input flex-1 text-sm"
-              placeholder="Agregar comentario..."
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addComment()}
-            />
-            <button className="btn-primary text-sm px-4" onClick={addComment}>Agregar</button>
-          </div>
-          {commentError && <p className="text-sm text-rose-400">{commentError}</p>}
-          {loadingComments && <p className="text-sm text-violet-300/50">Cargando comentarios…</p>}
-          {!loadingComments && comments.length === 0 ? (
-            <p className="text-sm text-violet-300/50 py-4 text-center">Sin comentarios aún.</p>
-          ) : (
-            <div className="space-y-3 mt-4 max-h-96 overflow-y-auto">
-              {comments.map((c) => {
-                const dt = new Date(c.created_at);
-                const time = dt.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
-                const date = dt.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
-                return (
-                  <div key={c.id} className="p-3 rounded-lg bg-violet-500/5 border border-violet-500/20">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="text-[11px] text-violet-300/70">{date} a las {time}</div>
-                      <button
-                        className="text-violet-300/40 hover:text-rose-400 transition text-xs"
-                        onClick={() => deleteComment(c.id)}
-                        title="Eliminar comentario"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                    <p className="text-sm text-violet-50 mt-1 break-words">{c.content}</p>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 }
 
-function Metric({ label, value, sub, highlight }: { label: string; value: string; sub?: string; highlight?: boolean }) {
+function StatCell({ label, value, sub, highlight }: { label: string; value: string; sub?: string; highlight?: boolean }) {
   return (
-    <div className="panel p-4">
-      <div className="text-[11px] uppercase tracking-wider text-violet-300/60">{label}</div>
-      <div className={`text-xl font-bold mt-1 ${highlight ? "gradient-text" : "text-violet-50"}`}>{value}</div>
-      {sub && <div className="text-[11px] text-violet-300/40 mt-0.5">{sub}</div>}
+    <div className="px-4 py-2.5 shrink-0">
+      <div className="text-[10px] uppercase tracking-wider text-violet-300/60 whitespace-nowrap">{label}</div>
+      <div className={`text-base font-bold leading-tight mt-0.5 whitespace-nowrap ${highlight ? "gradient-text" : "text-violet-50"}`}>{value}</div>
+      {sub && <div className="text-[10px] text-violet-300/40 whitespace-nowrap">{sub}</div>}
     </div>
   );
 }
