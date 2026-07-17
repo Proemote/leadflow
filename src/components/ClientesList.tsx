@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CustomerSummary, Contact } from "@/lib/types";
 import { PortfolioAggregate } from "@/lib/customers";
-import { CUSTOMER_STATUS_META, getJourneyStageLabel } from "@/lib/metrics";
+import { CUSTOMER_STATUS_META, getJourneyStageMeta } from "@/lib/metrics";
 import { computeCustomerMetrics } from "@/lib/metrics";
 import { formatPrice, parsePriceToCents } from "@/lib/money";
 import { initials } from "@/lib/format";
@@ -13,6 +13,8 @@ import { IconPlus, IconUsers } from "@/components/icons";
 import { ImportContactsModal } from "@/components/ImportContactsModal";
 
 type SortKey = "clv" | "recencia" | "antiguedad" | "nombre";
+const SORT_KEYS: SortKey[] = ["clv", "recencia", "antiguedad", "nombre"];
+const SORT_STORAGE_KEY = "clientes-sort";
 
 export function ClientesList({
   customers: initialCustomers,
@@ -41,6 +43,21 @@ export function ClientesList({
     if (params.get("new") === "1") setShowForm(true);
     if (params.get("import") === "1") setShowImport(true);
   }, []);
+
+  // Recordar el orden elegido entre visitas a esta página
+  useEffect(() => {
+    const stored = localStorage.getItem(SORT_STORAGE_KEY) as SortKey | null;
+    if (stored && SORT_KEYS.includes(stored)) setSort(stored);
+  }, []);
+
+  function updateSort(next: SortKey) {
+    setSort(next);
+    try {
+      localStorage.setItem(SORT_STORAGE_KEY, next);
+    } catch {
+      // localStorage no disponible — el orden no persiste, pero no rompe la UI
+    }
+  }
 
   // En modo demo, agregar contactos temporales de localStorage
   useEffect(() => {
@@ -130,7 +147,7 @@ export function ClientesList({
               ))}
             </select>
           )}
-          <select className="input py-2 w-auto" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+          <select className="input py-2 w-auto" value={sort} onChange={(e) => updateSort(e.target.value as SortKey)}>
             <option value="nombre">Ordenar: Nombre</option>
             <option value="clv">Ordenar: CLV</option>
             <option value="recencia">Ordenar: Recencia</option>
@@ -227,8 +244,8 @@ export function ClientesList({
                   <div className="flex flex-wrap gap-1.5">
                     <span className={`chip ${meta.cls}`}>{meta.label}</span>
                     {c.contact.journey_stage && (
-                      <span className="text-[11px] px-2 py-1 rounded-full bg-amber-500/20 text-amber-200 border border-amber-500/30 whitespace-nowrap">
-                        {getJourneyStageLabel(c.contact.journey_stage)}
+                      <span className={`chip ${getJourneyStageMeta(c.contact.journey_stage).cls} whitespace-nowrap`}>
+                        {getJourneyStageMeta(c.contact.journey_stage).label}
                       </span>
                     )}
                   </div>

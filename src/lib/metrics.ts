@@ -92,21 +92,25 @@ export const CUSTOMER_STATUS_META: Record<
   { label: string; cls: string }
 > = {
   potencial: { label: "Potencial", cls: "chip-cold" },
-  activo: { label: "Activo", cls: "chip-hot" },
+  activo: { label: "Activo", cls: "chip-green" },
   riesgo: { label: "En riesgo", cls: "chip-warm" },
-  inactivo: { label: "Inactivo", cls: "" },
+  inactivo: { label: "Inactivo", cls: "chip-hot" },
 };
 
-const JOURNEY_STAGE_LABELS: Record<string, string> = {
-  potencial: "Cliente potencial",
-  propuesta_enviada: "Propuesta enviada",
-  propuesta_pendiente: "Propuesta pendiente",
-  propuesta_aceptada: "Propuesta aceptada",
-  propuesta_rechazada: "Propuesta rechazada",
-  cliente: "Cliente",
-  cliente_inactivo: "Cliente inactivo",
+const JOURNEY_STAGE_META: Record<string, { label: string; cls: string }> = {
+  potencial: { label: "Cliente potencial", cls: "chip-cold" },
+  propuesta_enviada: { label: "Propuesta enviada", cls: "chip-cold" },
+  propuesta_pendiente: { label: "Propuesta pendiente", cls: "chip-warm" },
+  propuesta_aceptada: { label: "Propuesta aceptada", cls: "chip-green" },
+  propuesta_rechazada: { label: "Propuesta rechazada", cls: "chip-hot" },
+  cliente: { label: "Cliente", cls: "chip-green" },
+  cliente_inactivo: { label: "Cliente inactivo", cls: "chip-hot" },
 };
 
 export function getJourneyStageLabel(stage: string): string {
-  return JOURNEY_STAGE_LABELS[stage] ?? stage;
+  return JOURNEY_STAGE_META[stage]?.label ?? stage;
+}
+
+export function getJourneyStageMeta(stage: string): { label: string; cls: string } {
+  return JOURNEY_STAGE_META[stage] ?? { label: stage, cls: "" };
 }

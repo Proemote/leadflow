@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Contact, Operation, CustomerMetrics, OperationStatus, Opportunity, Booking, BookingStatus, ContactService, ContactServiceStatus, Service, BusinessConfig } from "@/lib/types";
-import { CUSTOMER_STATUS_META, getJourneyStageLabel } from "@/lib/metrics";
+import { CUSTOMER_STATUS_META, getJourneyStageMeta } from "@/lib/metrics";
 import { formatPrice } from "@/lib/money";
 import { formatSchedule } from "@/lib/format";
 import { initials } from "@/lib/format";
@@ -245,8 +245,8 @@ export function CustomerDetail({
             <h1 className="text-2xl font-bold text-violet-50">{contact.name ?? "Sin nombre"}</h1>
             <span className={`chip ${meta.cls}`}>{meta.label}</span>
             {(contact as any).journey_stage && (
-              <span className="text-[11px] px-2 py-1 rounded-full bg-amber-500/20 text-amber-200 border border-amber-500/30">
-                {getJourneyStageLabel((contact as any).journey_stage)}
+              <span className={`chip ${getJourneyStageMeta((contact as any).journey_stage).cls}`}>
+                {getJourneyStageMeta((contact as any).journey_stage).label}
               </span>
             )}
           </div>

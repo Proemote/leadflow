@@ -204,6 +204,7 @@ body {
   .chip-hot { background: rgba(244, 63, 94, 0.16); color: #fb7185; border: 1px solid rgba(244,63,94,0.3); }
   .chip-warm { background: rgba(245, 158, 11, 0.14); color: #fbbf24; border: 1px solid rgba(245,158,11,0.28); }
   .chip-cold { background: rgba(56, 189, 248, 0.12); color: #7dd3fc; border: 1px solid rgba(56,189,248,0.25); }
+  .chip-green { background: rgba(52, 211, 153, 0.14); color: #6ee7b7; border: 1px solid rgba(52,211,153,0.3); }
 
   .gradient-text {
     background: linear-gradient(120deg, #fff 10%, #c084fc 55%, #8b5cf6 100%);
