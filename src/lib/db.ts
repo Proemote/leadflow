@@ -19,7 +19,7 @@ export { isSupabaseConfigured };
 // ─── Lecturas para la UI (con fallback a demo) ──────────────────
 
 export async function getConversations(): Promise<ConversationSummary[]> {
-  if (!isSupabaseConfigured()) return buildDemoConversations();
+  if (!isSupabaseConfigured()) return buildDemoConversations().filter((c) => c.messageCount > 0);
   const sb = supabaseAdmin();
 
   const { data: contacts } = await sb
@@ -49,12 +49,14 @@ export async function getConversations(): Promise<ConversationSummary[]> {
     };
   });
 
-  // Ordenar por último mensaje desc
-  return list.sort((a, b) => {
-    const ta = a.lastMessage?.created_at ?? a.contact.created_at;
-    const tb = b.lastMessage?.created_at ?? b.contact.created_at;
-    return tb.localeCompare(ta);
-  });
+  // Solo conversaciones activas (con al menos un mensaje), ordenadas por último mensaje desc
+  return list
+    .filter((c) => c.messageCount > 0)
+    .sort((a, b) => {
+      const ta = a.lastMessage?.created_at ?? a.contact.created_at;
+      const tb = b.lastMessage?.created_at ?? b.contact.created_at;
+      return tb.localeCompare(ta);
+    });
 }
 
 export async function getConversation(contactId: string): Promise<{
@@ -342,7 +344,7 @@ export async function setSetting(key: string, value: string): Promise<void> {
 export async function getConversationsForUser(
   userId: string
 ): Promise<ConversationSummary[]> {
-  if (!isSupabaseConfigured()) return buildDemoConversations();
+  if (!isSupabaseConfigured()) return buildDemoConversations().filter((c) => c.messageCount > 0);
   const sb = supabaseAdmin();
 
   const { data: contacts } = await sb
@@ -375,11 +377,13 @@ export async function getConversationsForUser(
     };
   });
 
-  return list.sort((a, b) => {
-    const ta = a.lastMessage?.created_at ?? a.contact.created_at;
-    const tb = b.lastMessage?.created_at ?? b.contact.created_at;
-    return tb.localeCompare(ta);
-  });
+  return list
+    .filter((c) => c.messageCount > 0)
+    .sort((a, b) => {
+      const ta = a.lastMessage?.created_at ?? a.contact.created_at;
+      const tb = b.lastMessage?.created_at ?? b.contact.created_at;
+      return tb.localeCompare(ta);
+    });
 }
 
 export async function getConversationForUser(

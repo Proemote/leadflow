@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CustomerSummary, Contact } from "@/lib/types";
 import { PortfolioAggregate } from "@/lib/customers";
-import { CUSTOMER_STATUS_META } from "@/lib/metrics";
+import { CUSTOMER_STATUS_META, getJourneyStageLabel } from "@/lib/metrics";
 import { computeCustomerMetrics } from "@/lib/metrics";
 import { formatPrice, parsePriceToCents } from "@/lib/money";
 import { initials } from "@/lib/format";
@@ -27,7 +27,7 @@ export function ClientesList({
   const [q, setQ] = useState("");
   const [estado, setEstado] = useState<string>("todos");
   const [selectedTag, setSelectedTag] = useState<string>("todos");
-  const [sort, setSort] = useState<SortKey>("clv");
+  const [sort, setSort] = useState<SortKey>("nombre");
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -131,10 +131,10 @@ export function ClientesList({
             </select>
           )}
           <select className="input py-2 w-auto" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+            <option value="nombre">Ordenar: Nombre</option>
             <option value="clv">Ordenar: CLV</option>
             <option value="recencia">Ordenar: Recencia</option>
             <option value="antiguedad">Ordenar: Antigüedad</option>
-            <option value="nombre">Ordenar: Nombre</option>
           </select>
           <button className="btn-ghost text-sm py-2 px-3" onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}>
             ⚙️ Filtros
@@ -224,7 +224,14 @@ export function ClientesList({
                       <div className="text-[11px] text-violet-300/60 truncate">{c.contact.company ?? c.contact.email ?? c.contact.phone ?? ""}</div>
                     </div>
                   </div>
-                  <div><span className={`chip ${meta.cls}`}>{meta.label}</span></div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className={`chip ${meta.cls}`}>{meta.label}</span>
+                    {c.contact.journey_stage && (
+                      <span className="text-[11px] px-2 py-1 rounded-full bg-amber-500/20 text-amber-200 border border-amber-500/30 whitespace-nowrap">
+                        {getJourneyStageLabel(c.contact.journey_stage)}
+                      </span>
+                    )}
+                  </div>
                   <div className="text-sm text-violet-200">{c.metrics.nOps}</div>
                   <div className="text-sm font-semibold text-violet-50">{c.metrics.clvCents > 0 ? formatPrice(c.metrics.clvCents) : "—"}</div>
                   <div className="text-sm text-violet-300/70">{c.metrics.recenciaDias == null ? "—" : c.metrics.recenciaDias === 0 ? "hoy" : `hace ${c.metrics.recenciaDias} d`}</div>

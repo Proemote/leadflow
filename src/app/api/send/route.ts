@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/admin";
-import { insertMessage } from "@/lib/db";
+import { insertMessageForUser } from "@/lib/db";
 import { sendWhatsAppText } from "@/lib/whatsapp";
+import { withAuth } from "@/lib/api-auth";
 import { Contact } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** Envío manual de un operador desde el panel de conversación. */
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest, userId: string) => {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ error: "supabase no configurado" }, { status: 400 });
   }
@@ -22,6 +23,7 @@ export async function POST(req: NextRequest) {
     .from("contacts")
     .select("*")
     .eq("id", contactId)
+    .eq("user_id", userId)
     .single();
   if (!contact) {
     return NextResponse.json({ error: "contacto no existe" }, { status: 404 });
@@ -32,7 +34,7 @@ export async function POST(req: NextRequest) {
   }
 
   const wamid = await sendWhatsAppText(phone, text.trim());
-  const msg = await insertMessage({
+  const msg = await insertMessageForUser(userId, {
     contact_id: contactId,
     role: "assistant",
     content: text.trim(),
@@ -41,4 +43,4 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json({ ok: wamid !== null, message: msg, sent: wamid !== null });
-}
+});

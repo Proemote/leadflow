@@ -2,8 +2,10 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ConversationSummary } from "@/lib/types";
 import { timeAgo, initials, scoreLabel } from "@/lib/format";
+import { IconPlus } from "@/components/icons";
 
 const FILTERS = [
   { key: "all", label: "Todas" },
@@ -14,10 +16,24 @@ const FILTERS = [
 
 const POLL_INTERVAL = 6000;
 
-export function ConversationsList({ items: initialItems }: { items: ConversationSummary[] }) {
+interface ContactOpt {
+  id: string;
+  name: string;
+  phone: string | null;
+}
+
+export function ConversationsList({
+  items: initialItems,
+  allContacts,
+}: {
+  items: ConversationSummary[];
+  allContacts: ContactOpt[];
+}) {
+  const router = useRouter();
   const [items, setItems] = useState(initialItems);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<string>("all");
+  const [showNew, setShowNew] = useState(false);
 
   useEffect(() => {
     const poll = async () => {
@@ -73,8 +89,22 @@ export function ConversationsList({ items: initialItems }: { items: Conversation
               {f.label}
             </button>
           ))}
+          <button
+            className="btn-primary flex items-center gap-2 whitespace-nowrap"
+            onClick={() => setShowNew(true)}
+          >
+            <IconPlus width={16} height={16} /> Nueva conversación
+          </button>
         </div>
       </div>
+
+      {showNew && (
+        <NewConversationModal
+          contacts={allContacts}
+          onClose={() => setShowNew(false)}
+          onPick={(id) => router.push(`/conversations/${id}`)}
+        />
+      )}
 
       <div className="panel divide-y divide-[var(--color-edge-soft)] overflow-hidden">
         {filtered.map((c) => (
@@ -122,6 +152,65 @@ export function ConversationsList({ items: initialItems }: { items: Conversation
             No hay conversaciones que coincidan.
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function NewConversationModal({
+  contacts,
+  onClose,
+  onPick,
+}: {
+  contacts: ContactOpt[];
+  onClose: () => void;
+  onPick: (contactId: string) => void;
+}) {
+  const [q, setQ] = useState("");
+
+  const filtered = useMemo(() => {
+    if (!q) return contacts;
+    const needle = q.toLowerCase();
+    return contacts.filter(
+      (c) => c.name.toLowerCase().includes(needle) || (c.phone ?? "").toLowerCase().includes(needle)
+    );
+  }, [contacts, q]);
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div className="panel p-6 w-full max-w-md space-y-4" onClick={(e) => e.stopPropagation()}>
+        <h3 className="font-semibold text-violet-50">Nueva conversación</h3>
+        <input
+          autoFocus
+          className="input"
+          placeholder="Buscar contacto por nombre o teléfono…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+        <div className="max-h-80 overflow-y-auto -mx-2 px-2 space-y-1">
+          {filtered.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => onPick(c.id)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-violet-500/10 transition text-left"
+            >
+              <div
+                className="size-9 rounded-full grid place-items-center text-xs font-bold text-white shrink-0"
+                style={{ background: "linear-gradient(140deg,#8b5cf6,#6d28d9)" }}
+              >
+                {initials(c.name, c.phone)}
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-violet-50 truncate">{c.name}</div>
+                {c.phone && <div className="text-[11px] text-violet-300/60 truncate">{c.phone}</div>}
+              </div>
+            </button>
+          ))}
+          {filtered.length === 0 && (
+            <p className="text-sm text-violet-300/50 px-3 py-6 text-center">Ningún contacto coincide.</p>
+          )}
+        </div>
+        <button className="btn-ghost w-full" onClick={onClose}>Cancelar</button>
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Contact, Operation, CustomerMetrics, OperationStatus, Opportunity, Booking, BookingStatus, ContactService, ContactServiceStatus, Service, BusinessConfig } from "@/lib/types";
-import { CUSTOMER_STATUS_META } from "@/lib/metrics";
+import { CUSTOMER_STATUS_META, getJourneyStageLabel } from "@/lib/metrics";
 import { formatPrice } from "@/lib/money";
 import { formatSchedule } from "@/lib/format";
 import { initials } from "@/lib/format";
@@ -34,19 +34,6 @@ function stageAccent(s: string) { return STAGE_COLOR[s] ?? "#a855f7"; }
 
 function fecha(iso: string): string {
   return new Date(iso).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
-}
-
-function getJourneyStageLabel(stage: string): string {
-  const labels: Record<string, string> = {
-    potencial: "Cliente potencial",
-    propuesta_enviada: "Propuesta enviada",
-    propuesta_pendiente: "Propuesta pendiente",
-    propuesta_aceptada: "Propuesta aceptada",
-    propuesta_rechazada: "Propuesta rechazada",
-    cliente: "Cliente",
-    cliente_inactivo: "Cliente inactivo",
-  };
-  return labels[stage] ?? stage;
 }
 
 export function CustomerDetail({
@@ -637,6 +624,7 @@ function EditContactForm({ contact, demo, onSaved, onCancel }: { contact: Contac
       email: f.email.trim() || null,
       company: f.company.trim() || null,
       notes: f.notes.trim() || null,
+      journey_stage: f.journey_stage || null,
       tags: f.tags.split(",").map((t) => t.trim()).filter(Boolean),
     };
 

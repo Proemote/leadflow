@@ -270,6 +270,15 @@ export async function updateOpportunityForUser(
     if (!opError) operationCreated = op as Operation;
   }
 
+  // Reflejar el cierre de la oportunidad en la etapa del customer journey del contacto
+  if (opp.contact_id && input.stage && input.stage !== opp.stage) {
+    const journeyStage =
+      input.stage === "Ganado" ? "cliente" : input.stage === "Perdido" ? "propuesta_rechazada" : null;
+    if (journeyStage) {
+      await sb.from("contacts").update({ journey_stage: journeyStage }).eq("id", opp.contact_id).eq("user_id", userId);
+    }
+  }
+
   return { opportunity: updated as Opportunity, operationCreated };
 }
 

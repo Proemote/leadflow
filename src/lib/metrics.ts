@@ -96,3 +96,17 @@ export const CUSTOMER_STATUS_META: Record<
   riesgo: { label: "En riesgo", cls: "chip-warm" },
   inactivo: { label: "Inactivo", cls: "" },
 };
+
+const JOURNEY_STAGE_LABELS: Record<string, string> = {
+  potencial: "Cliente potencial",
+  propuesta_enviada: "Propuesta enviada",
+  propuesta_pendiente: "Propuesta pendiente",
+  propuesta_aceptada: "Propuesta aceptada",
+  propuesta_rechazada: "Propuesta rechazada",
+  cliente: "Cliente",
+  cliente_inactivo: "Cliente inactivo",
+};
+
+export function getJourneyStageLabel(stage: string): string {
+  return JOURNEY_STAGE_LABELS[stage] ?? stage;
+}
