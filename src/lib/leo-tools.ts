@@ -9,6 +9,8 @@ export interface LeoContext {
   contactId?: string | null;
   phone?: string | null;
   name?: string | null;
+  journeyStage?: string | null;
+  notes?: string | null;
 }
 
 /**

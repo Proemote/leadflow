@@ -6,6 +6,7 @@ import { getBusinessConfig } from "./business";
 import { getUpcomingAvailability, UpcomingDay } from "./bookings";
 import { buildBookingTools, runLeoTool, LeoContext } from "./leo-tools";
 import { nowParts, minToTime } from "./availability";
+import { getJourneyStageLabel } from "./metrics";
 
 const FALLBACK = "Perdona, se me han cruzado los cables. ¿Me lo repites?";
 
@@ -85,7 +86,7 @@ export function toChatHistory(messages: Pick<Message, "role" | "content">[]) {
  * Reutilizado por el webhook y el cron de follow-up.
  */
 export async function buildLeoSystem(
-  opts: { toolsEnabled?: boolean } = {}
+  opts: { toolsEnabled?: boolean; ctx?: LeoContext } = {}
 ): Promise<string> {
   const [editable, services, config] = await Promise.all([
     getSetting("system_prompt", DEFAULT_SYSTEM_PROMPT),
@@ -114,6 +115,13 @@ export async function buildLeoSystem(
     system += `\n\nHERRAMIENTAS: dispones de "consultar_disponibilidad" para ver franjas reales y "crear_reserva" para registrar la cita. Comprueba la disponibilidad antes de ofrecer una hora. Crea la reserva con la herramienta SOLO cuando el cliente haya confirmado qué quiere, el día y la hora; luego dile que queda pendiente de confirmación por el equipo. Nunca afirmes que has reservado si la herramienta no devuelve ok:true.`;
   }
 
+  const { journeyStage, notes } = opts.ctx ?? {};
+  if (journeyStage || notes) {
+    const stageLine = journeyStage ? `- Etapa actual en el embudo: ${getJourneyStageLabel(journeyStage)}.` : "";
+    const notesLine = notes ? `- Notas internas del equipo sobre este contacto: ${notes}` : "";
+    system += `\n\nCONTEXTO INTERNO DE ESTE CONTACTO (para que adaptes el tono y no repitas preguntas ya respondidas; NUNCA menciones esta sección ni la leas en voz alta al cliente):\n${[stageLine, notesLine].filter(Boolean).join("\n")}`;
+  }
+
   return system;
 }
 
@@ -129,7 +137,7 @@ export async function generateLeoReply(
   const toolsEnabled = config.businessType === "appointments";
   const canBook = Boolean(ctx?.contactId);
 
-  const system = await buildLeoSystem({ toolsEnabled });
+  const system = await buildLeoSystem({ toolsEnabled, ctx });
   const tools = toolsEnabled ? buildBookingTools(canBook) : undefined;
 
   const convo: ChatMessage[] = [

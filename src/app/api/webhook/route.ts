@@ -119,6 +119,8 @@ async function handleIncomingMessage(
     contactId: contact.id,
     phone,
     name: contact.name,
+    journeyStage: contact.journey_stage,
+    notes: contact.notes,
   });
 
   // Enviar por WhatsApp y guardar con wamid (status real: failed si no salió)

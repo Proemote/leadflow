@@ -14,6 +14,7 @@ import {
   IconUsers,
   IconKanban,
   IconSliders,
+  IconFile,
 } from "./icons";
 
 const NAV = [
@@ -21,6 +22,7 @@ const NAV = [
   { href: "/conversations", label: "Conversaciones", Icon: IconChat },
   { href: "/clientes", label: "Clientes", Icon: IconUsers },
   { href: "/oportunidades", label: "Oportunidades", Icon: IconKanban },
+  { href: "/propuestas", label: "Propuestas", Icon: IconFile },
   { href: "/servicios", label: "Servicios", Icon: IconMenu },
   { href: "/reservas", label: "Agenda", Icon: IconCalendar },
   { href: "/settings", label: "Leo · Instrucciones", Icon: IconSettings },

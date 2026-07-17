@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/admin";
 import { withAuth } from "@/lib/api-auth";
+import { getProfile } from "@/lib/profile";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,10 +32,11 @@ export const POST = withAuth(async (req: NextRequest, userId: string) => {
       );
     }
 
+    const profile = await getProfile();
     const sb = supabaseAdmin();
     const { data, error } = await sb
       .from("contact_notes")
-      .insert({ contact_id: contactId, content, user_id: userId })
+      .insert({ contact_id: contactId, content, user_id: userId, created_by: profile.name })
       .select()
       .single();
 

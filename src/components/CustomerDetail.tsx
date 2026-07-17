@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Contact, Operation, CustomerMetrics, OperationStatus, Opportunity, Booking, BookingStatus, ContactService, ContactServiceStatus, Service, BusinessConfig } from "@/lib/types";
 import { CUSTOMER_STATUS_META, getJourneyStageMeta } from "@/lib/metrics";
-import { formatPrice } from "@/lib/money";
+import { formatPrice, parsePriceToCents } from "@/lib/money";
 import { formatSchedule } from "@/lib/format";
 import { initials } from "@/lib/format";
 import { IconBack, IconPlus, IconTrash } from "@/components/icons";
@@ -41,7 +41,7 @@ function fechaHora(iso: string): string {
   return `${d.toLocaleDateString("es-ES", { day: "2-digit", month: "short" })}, ${d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
-type Comment = { id: string; content: string; created_at: string };
+type Comment = { id: string; content: string; created_at: string; created_by?: string | null };
 
 type ActivityEntry =
   | { kind: "operation"; date: string; data: Operation }
@@ -51,7 +51,7 @@ type ActivityEntry =
 export function CustomerDetail({
   contact: initialContact,
   operations: initialOps,
-  opportunities,
+  opportunities: initialOpportunities,
   bookings: initialBookings,
   contractedServices: initialContractedServices,
   services,
@@ -72,9 +72,11 @@ export function CustomerDetail({
   const router = useRouter();
   const [contact, setContact] = useState(initialContact);
   const [operations, setOperations] = useState(initialOps);
+  const [opportunities, setOpportunities] = useState(initialOpportunities);
   const [bookings, setBookings] = useState(initialBookings);
   const [contractedServices, setContractedServices] = useState(initialContractedServices);
   const [showForm, setShowForm] = useState(false);
+  const [showAddProposal, setShowAddProposal] = useState(false);
   const [showEditContact, setShowEditContact] = useState(false);
   const [showAddBooking, setShowAddBooking] = useState(false);
   const [showAddService, setShowAddService] = useState(false);
@@ -83,6 +85,8 @@ export function CustomerDetail({
   const [newComment, setNewComment] = useState("");
   const [loadingComments, setLoadingComments] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notesDraft, setNotesDraft] = useState(initialContact.notes ?? "");
 
   // Load comments from BD on mount
   useEffect(() => {
@@ -124,6 +128,7 @@ export function CustomerDetail({
           id: `cmnt-${Date.now()}`,
           content: newComment.trim(),
           created_at: new Date().toISOString(),
+          created_by: "Tú (demo)",
         };
         const updated = [comment, ...comments];
         setComments(updated);
@@ -207,6 +212,24 @@ export function CustomerDetail({
     }
   }, [contact.id, contact.name, demo, router]);
 
+  // Edición rápida (sin abrir "Editar contacto"): etapa del journey, notas...
+  async function quickPatchContact(patch: Partial<Contact>) {
+    setContact((c) => ({ ...c, ...patch }));
+    if (demo) return;
+    try {
+      const res = await fetch(`/api/customers/${contact.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? "Error");
+    } catch (e) {
+      console.error("Error al actualizar contacto:", e);
+      alert("No se pudo guardar el cambio.");
+    }
+  }
+
   async function patchBookingStatus(b: Booking, status: BookingStatus) {
     setBookings((arr) => arr.map((x) => (x.id === b.id ? { ...x, status } : x)));
     if (!demo) {
@@ -266,11 +289,26 @@ export function CustomerDetail({
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-2xl font-bold text-violet-50">{contact.name ?? "Sin nombre"}</h1>
             <span className={`chip ${meta.cls}`}>{meta.label}</span>
-            {(contact as any).journey_stage && (
-              <span className={`chip ${getJourneyStageMeta((contact as any).journey_stage).cls}`}>
-                {getJourneyStageMeta((contact as any).journey_stage).label}
+            {contact.journey_stage && (
+              <span className={`chip ${getJourneyStageMeta(contact.journey_stage).cls}`}>
+                {getJourneyStageMeta(contact.journey_stage).label}
               </span>
             )}
+            <select
+              value={contact.journey_stage ?? ""}
+              onChange={(e) => quickPatchContact({ journey_stage: e.target.value || null })}
+              className="text-[11px] bg-violet-500/10 border border-[var(--color-edge)] rounded-full px-2 py-1 text-violet-300"
+              title="Cambiar etapa del customer journey"
+            >
+              <option value="">Sin clasificar</option>
+              <option value="potencial">Cliente potencial</option>
+              <option value="propuesta_enviada">Propuesta enviada</option>
+              <option value="propuesta_pendiente">Propuesta pendiente</option>
+              <option value="propuesta_aceptada">Propuesta aceptada</option>
+              <option value="propuesta_rechazada">Propuesta rechazada</option>
+              <option value="cliente">Cliente</option>
+              <option value="cliente_inactivo">Cliente inactivo</option>
+            </select>
           </div>
           <div className="text-sm text-violet-300/70 mt-0.5">
             {[contact.company, contact.email, contact.phone].filter(Boolean).join(" · ") || "Sin datos de contacto"}
@@ -300,11 +338,59 @@ export function CustomerDetail({
           demo={demo}
           onSaved={(c) => {
             setContact(c);
+            setNotesDraft(c.notes ?? "");
             setShowEditContact(false);
           }}
           onCancel={() => setShowEditContact(false)}
         />
       )}
+
+      {/* Notas internas — siempre visibles, edición rápida sin abrir el formulario completo */}
+      <div className="panel p-4">
+        <div className="flex items-center justify-between gap-3 mb-1">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-violet-300/60">📝 Notas internas</h3>
+          {!editingNotes && (
+            <button className="text-xs text-violet-300 hover:text-white transition" onClick={() => setEditingNotes(true)}>
+              {contact.notes ? "Editar" : "+ Añadir nota"}
+            </button>
+          )}
+        </div>
+        {editingNotes ? (
+          <div className="space-y-2">
+            <textarea
+              className="input text-sm min-h-[70px]"
+              value={notesDraft}
+              onChange={(e) => setNotesDraft(e.target.value)}
+              placeholder="Contexto interno sobre este contacto (Leo también lo tiene en cuenta al responderle por WhatsApp)…"
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <button
+                className="btn-primary text-xs py-1.5 px-3"
+                onClick={() => {
+                  quickPatchContact({ notes: notesDraft.trim() || null });
+                  setEditingNotes(false);
+                }}
+              >
+                Guardar
+              </button>
+              <button
+                className="btn-ghost text-xs py-1.5 px-3"
+                onClick={() => {
+                  setNotesDraft(contact.notes ?? "");
+                  setEditingNotes(false);
+                }}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-violet-100/90 whitespace-pre-wrap">
+            {contact.notes || <span className="text-violet-300/50">Sin notas todavía.</span>}
+          </p>
+        )}
+      </div>
 
       {/* Métricas: una sola tira compacta */}
       <div className="panel overflow-x-auto">
@@ -326,9 +412,30 @@ export function CustomerDetail({
       <div className="grid grid-cols-1 lg:grid-cols-[35%_1fr] gap-6 items-start">
         {/* Columna izquierda: listas de gestión */}
         <div className="space-y-6">
-          {opportunities.length > 0 && (
-            <div className="panel p-5">
-              <h3 className="font-semibold text-violet-50 mb-2">Oportunidades</h3>
+          <div className="panel p-5">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-violet-50">Oportunidades</h3>
+              <button className="btn-ghost flex items-center gap-1.5 py-1 px-2.5 text-xs" onClick={() => setShowAddProposal((v) => !v)}>
+                <IconPlus width={13} height={13} /> Nueva propuesta
+              </button>
+            </div>
+            {showAddProposal && (
+              <AddProposalForm
+                contact={contact}
+                demo={demo}
+                onCreated={(o) => {
+                  setOpportunities((arr) => [o, ...arr]);
+                  setShowAddProposal(false);
+                }}
+                onCancel={() => setShowAddProposal(false)}
+              />
+            )}
+            {opportunities.length === 0 ? (
+              <div className="flex items-center justify-between gap-3 py-2">
+                <span className="text-sm text-violet-300/50">💼 Sin oportunidades</span>
+                <button className="btn-ghost text-xs py-1 px-2.5 shrink-0" onClick={() => setShowAddProposal(true)}>+ Nueva propuesta</button>
+              </div>
+            ) : (
               <div className="divide-y divide-[var(--color-edge-soft)]">
                 {opportunities.map((o) => (
                   <div key={o.id} className="flex items-center gap-3 py-2">
@@ -341,8 +448,8 @@ export function CustomerDetail({
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Servicios contratados */}
           <div className="panel p-5">
@@ -546,7 +653,9 @@ export function CustomerDetail({
                       <span className="text-base shrink-0" title="Comentario">💬</span>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm text-violet-50 break-words">{c.content}</p>
-                        <div className="text-[11px] text-violet-300/60">{fechaHora(c.created_at)}</div>
+                        <div className="text-[11px] text-violet-300/60">
+                          {c.created_by ? `${c.created_by} · ` : ""}{fechaHora(c.created_at)}
+                        </div>
                       </div>
                       <button
                         className="text-violet-300/40 hover:text-rose-400 transition text-xs shrink-0"
@@ -654,7 +763,7 @@ function EditContactForm({ contact, demo, onSaved, onCancel }: { contact: Contac
     email: contact.email ?? "",
     company: contact.company ?? "",
     notes: contact.notes ?? "",
-    journey_stage: (contact as any).journey_stage ?? "",
+    journey_stage: contact.journey_stage ?? "",
     tags: (contact.tags ?? []).join(", "),
   });
   const [busy, setBusy] = useState(false);
@@ -834,6 +943,119 @@ function AddContractedServiceForm({
       <div className="flex gap-3">
         <button className="btn-primary" onClick={save} disabled={busy}>{busy ? "Guardando…" : "Añadir"}</button>
         <button className="btn-ghost" onClick={onCancel}>Cancelar</button>
+      </div>
+    </div>
+  );
+}
+
+function AddProposalForm({
+  contact,
+  demo,
+  onCreated,
+  onCancel,
+}: {
+  contact: Contact;
+  demo: boolean;
+  onCreated: (o: Opportunity) => void;
+  onCancel: () => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [value, setValue] = useState("");
+  const [expectedClose, setExpectedClose] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    if (!title.trim()) return setError("El título es obligatorio.");
+    setBusy(true);
+    setError(null);
+
+    if (demo) {
+      onCreated({
+        id: `tmp-${Date.now()}`,
+        title: title.trim(),
+        contact_id: contact.id,
+        value_cents: parsePriceToCents(value),
+        currency: "EUR",
+        probability: 50,
+        stage: "Propuesta",
+        expected_close: expectedClose || null,
+        owner: null,
+        last_activity: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        contact_name: contact.name,
+      });
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/opportunities", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title.trim(),
+          contact_id: contact.id,
+          value_cents: parsePriceToCents(value),
+          probability: 50,
+          stage: "Propuesta",
+          expected_close: expectedClose || null,
+        }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? "Error al crear la propuesta");
+      const opportunity: Opportunity = j.opportunity;
+
+      if (file) {
+        const form = new FormData();
+        form.append("file", file);
+        const fileRes = await fetch(`/api/opportunities/${opportunity.id}/files`, {
+          method: "POST",
+          body: form,
+        });
+        if (!fileRes.ok) {
+          const fj = await fileRes.json().catch(() => ({}));
+          setError(`Propuesta creada, pero el archivo no se pudo subir: ${fj.error ?? "error desconocido"}`);
+        }
+      }
+
+      onCreated(opportunity);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="panel-tight p-4 space-y-3 mb-3">
+      <h4 className="font-semibold text-violet-50 text-sm">Nueva propuesta para {contact.name ?? "este contacto"}</h4>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <Field label="Título">
+          <input className="input" placeholder="Ej. Web + SEO local" value={title} onChange={(e) => setTitle(e.target.value)} />
+        </Field>
+        <Field label="Valor (€)">
+          <input className="input" placeholder="1490" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} />
+        </Field>
+        <Field label="Cierre estimado (opcional)">
+          <input type="date" className="input" value={expectedClose} onChange={(e) => setExpectedClose(e.target.value)} />
+        </Field>
+        <Field label="Documento (opcional)">
+          <input
+            type="file"
+            accept=".pdf,.md,.markdown,.txt"
+            className="input text-xs file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-violet-500/20 file:text-violet-200"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          />
+        </Field>
+      </div>
+      <p className="text-[11px] text-violet-300/50">Se crea en fase &quot;Propuesta enviada&quot; y aparece también en el pipeline de Oportunidades. PDF, Markdown o TXT — máx. 4MB.</p>
+      {demo && <p className="text-xs text-amber-300/80">Modo demo: no se guardará.</p>}
+      {error && <p className="text-sm text-rose-400">{error}</p>}
+      <div className="flex gap-3">
+        <button className="btn-primary text-sm py-1.5 px-3" onClick={save} disabled={busy}>{busy ? "Creando…" : "Crear propuesta"}</button>
+        <button className="btn-ghost text-sm py-1.5 px-3" onClick={onCancel}>Cancelar</button>
       </div>
     </div>
   );
