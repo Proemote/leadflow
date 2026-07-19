@@ -59,7 +59,7 @@ Diferenciador central de Proemote: automatización y gestión de clientes con IA
 
 Changelog por sprint, del más reciente al más antiguo. Cada versión agrupa un lote de cambios desplegados junto en un commit (o commit + migración de BD asociada).
 
-### v1.9 — "Asistente interno (Hablar con Leo)" (19 julio, pendiente de commit)
+### v1.9 — "Asistente interno (Hablar con Leo)" (19 julio, commit `e808152`)
 - **Segundo modo de Leo:** asistente interno con el que habla Carlos (no los leads), en la nueva página `/asistente` ("Hablar con Leo"). Solo lectura: puede consultar el CRM y redactar borradores, pero no tiene NINGUNA herramienta capaz de crear/editar/borrar registros ni de enviar WhatsApp.
 - **Lib nueva `src/lib/leo-internal.ts`:** mismo patrón de function calling que `leo.ts`/`leo-tools.ts` (bucle de tool-calling sobre `chatWithTools` de OpenRouter/DeepSeek, máx. 4 rondas + cierre forzado en texto). Herramientas: `consultar_leads_calientes`, `consultar_oportunidades(etapa?)`, `consultar_agenda(fecha?)`, `consultar_contacto(nombre_o_id)`, `redactar_borrador(contacto_id, contexto?)`. Reutilizan las queries existentes (`getConversationsForUser`, `getOpportunitiesForUser`, `getBookingsForUser`, `getCustomersForUser`/`computeCustomerMetrics`) — cero lógica duplicada de calientes/CLV/agenda.
 - **Endpoint `POST /api/assistant-chat`:** requiere sesión (`getUserIdFromRequest`) cuando Supabase está configurado; fallback demo si no. Independiente de `/api/chat` (chat de prueba cara a lead) y del webhook de WhatsApp, que quedan intactos.
