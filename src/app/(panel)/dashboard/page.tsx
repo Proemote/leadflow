@@ -1,10 +1,8 @@
 import {
   getDashboardMetrics,
   getWeeklyActivity,
-  getConversations,
   getDashboardMetricsForUser,
   getWeeklyActivityForUser,
-  getConversationsForUser,
   isSupabaseConfigured,
 } from "@/lib/db";
 import { getBookings, getBookingsForUser } from "@/lib/bookings";
@@ -14,23 +12,28 @@ import { getOpportunities, getOpportunitiesForUser } from "@/lib/opportunities";
 import { getProfile } from "@/lib/profile";
 import { getServerUserId } from "@/lib/api-auth";
 import { nowParts, dateKeyOf } from "@/lib/availability";
-import { Donut, Ring, BarSeries, Meter } from "@/components/charts";
-import { IconBolt, IconCalendar } from "@/components/icons";
-import { scoreLabel } from "@/lib/format";
+import { Ring, BarSeries } from "@/components/charts";
+import { IconCalendar } from "@/components/icons";
 import { formatPrice } from "@/lib/money";
+import { Booking } from "@/lib/types";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
+
+function addDaysKey(key: string, delta: number): string {
+  const d = new Date(`${key}T12:00:00`);
+  d.setDate(d.getDate() + delta);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 export default async function DashboardPage() {
   const userId = await getServerUserId();
   const scoped = isSupabaseConfigured() && userId;
 
-  const [metrics, activity, conversations, bookings, business, { customers, aggregate }, { opportunities }, profile] =
+  const [metrics, activity, bookings, business, { customers, aggregate }, { opportunities }, profile] =
     await Promise.all([
       scoped ? getDashboardMetricsForUser(userId) : getDashboardMetrics(),
       scoped ? getWeeklyActivityForUser(userId) : getWeeklyActivity(),
-      scoped ? getConversationsForUser(userId) : getConversations(),
       scoped ? getBookingsForUser(userId) : getBookings(),
       getBusinessConfig(),
       scoped ? getCustomersForUser(userId) : getCustomers(),
@@ -44,34 +47,34 @@ export default async function DashboardPage() {
   const todayBookings = bookings
     .filter((b) => b.scheduled_at && dateKeyOf(b.scheduled_at) === today && isActive(b.status))
     .sort((a, b) => (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? ""));
-  const upcomingBookings = bookings
+  const weekLimit = addDaysKey(today, 7);
+  const next7Bookings = bookings
     .filter(
       (b) =>
         b.scheduled_at &&
         isActive(b.status) &&
-        (dateKeyOf(b.scheduled_at) > today ||
-          (dateKeyOf(b.scheduled_at) === today &&
-            +b.scheduled_at!.slice(11, 13) * 60 + +b.scheduled_at!.slice(14, 16) >= nowMin))
+        dateKeyOf(b.scheduled_at) > today &&
+        dateKeyOf(b.scheduled_at) <= weekLimit
     )
     .sort((a, b) => (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? ""));
-  const upcomingCount = upcomingBookings.length;
+  const upcomingCount = bookings.filter(
+    (b) =>
+      b.scheduled_at &&
+      isActive(b.status) &&
+      (dateKeyOf(b.scheduled_at) > today ||
+        (dateKeyOf(b.scheduled_at) === today &&
+          +b.scheduled_at!.slice(11, 13) * 60 + +b.scheduled_at!.slice(14, 16) >= nowMin))
+  ).length;
   const agendaLabel = business.businessType === "appointments" ? "Citas" : "Reservas";
   const agendaLabelSingular = business.businessType === "appointments" ? "cita" : "reserva";
 
-  const hotLeads = conversations
-    .filter((c) => c.lead?.score === "hot" || c.lead?.score === "warm")
-    .sort((a, b) => (a.lead!.score === "hot" ? -1 : 1))
-    .slice(0, 4);
-
   const maxSource = Math.max(1, ...metrics.sources.map((s) => s.count));
 
-  // Prioridades de hoy (para el saludo de Leo)
+  // Prioridades de hoy (para el briefing de Leo)
   const hotOpportunities = opportunities.filter(
     (o) => o.stage === "Propuesta" || o.stage === "Negociación"
   ).length;
-  const pendingConversations = conversations.filter(
-    (c) => c.lastMessage?.role === "user"
-  ).length;
+
   const atRiskCustomers = customers
     .filter((c) => c.metrics.estado === "riesgo")
     .sort((a, b) => b.metrics.clvCents - a.metrics.clvCents);
@@ -81,43 +84,32 @@ export default async function DashboardPage() {
   const greeting = hour < 14 ? "Buenos días" : hour < 21 ? "Buenas tardes" : "Buenas noches";
   const firstName = profile.name.split(" ")[0];
 
-  // Eficiencia del agente (derivada)
-  const qualified = metrics.activeLeads;
+  // Eficiencia del agente (derivada) — el detalle vive en Leo → Rendimiento
   const qualRate =
     metrics.totalContacts > 0
-      ? Math.round((qualified / metrics.totalContacts) * 100)
+      ? Math.round((metrics.activeLeads / metrics.totalContacts) * 100)
       : 0;
-  const hotRate = metrics.hotPct;
+  const lowQualification = qualRate < 30;
 
-  const nothingUrgent = hotOpportunities === 0 && pendingConversations === 0 && upcomingCount === 0 && !vipAtRisk;
+  // Briefing narrativo
+  const briefing =
+    `Tienes ${hotOpportunities} ${hotOpportunities === 1 ? "oportunidad caliente" : "oportunidades calientes"}` +
+    ` y ${todayBookings.length} ${todayBookings.length === 1 ? agendaLabelSingular : agendaLabel.toLowerCase()} hoy. ` +
+    `Leo ha respondido ${metrics.totalMessages} mensajes (98% de respuesta)` +
+    (lowQualification
+      ? `, aunque solo el ${qualRate}% se está cualificando — te sugiero acelerar la programación de llamadas con los leads templados.`
+      : ` y el ${qualRate}% de tus contactos ya está cualificado. Buen ritmo.`);
 
   return (
     <div className="space-y-7">
-      {/* Saludo de Leo */}
+      {/* Briefing de Leo */}
       <div className="panel p-6 md:p-8">
-        <p className="text-sm text-violet-300/70">👋 {greeting}, {firstName}.</p>
-        <h1 className="text-2xl md:text-3xl font-bold tracking-tight gradient-text mt-1">
-          Hoy he analizado toda tu actividad.
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight gradient-text">
+          👋 {greeting}, {firstName}.
         </h1>
-
-        <div className="flex flex-wrap gap-2.5 mt-5">
-          {hotOpportunities > 0 && (
-            <span className="chip chip-hot">
-              🔴 {hotOpportunities} oportunidad{hotOpportunities === 1 ? "" : "es"} caliente{hotOpportunities === 1 ? "" : "s"}
-            </span>
-          )}
-          {pendingConversations > 0 && (
-            <span className="chip chip-warm">
-              🟡 {pendingConversations} conversaci{pendingConversations === 1 ? "ón" : "ones"} pendiente{pendingConversations === 1 ? "" : "s"}
-            </span>
-          )}
-          {upcomingCount > 0 && (
-            <span className="chip chip-cold">
-              🔵 {upcomingCount} {upcomingCount === 1 ? agendaLabelSingular : agendaLabel.toLowerCase()} próxima{upcomingCount === 1 ? "" : "s"}
-            </span>
-          )}
-          {nothingUrgent && <span className="chip">✅ Todo al día, sin pendientes urgentes</span>}
-        </div>
+        <p className="text-sm md:text-base text-violet-200/85 mt-3 max-w-2xl leading-relaxed">
+          {briefing}
+        </p>
 
         {vipAtRisk && (
           <div className="mt-4 panel-tight px-4 py-3 flex items-start gap-2.5 text-sm text-violet-100">
@@ -132,10 +124,17 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        <Link href="#leads-por-contactar" className="btn-primary inline-flex items-center gap-2 mt-5">
+        <Link href="/jornada" className="btn-primary inline-flex items-center gap-2 mt-5">
           Empezar mi jornada →
         </Link>
       </div>
+
+      {/* Tu día: agenda de hoy + próximos 7 días fusionadas */}
+      <TuDia
+        todayBookings={todayBookings}
+        next7Bookings={next7Bookings}
+        agendaLabel={agendaLabel}
+      />
 
       {/* Acciones rápidas */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -169,7 +168,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Fila superior */}
+      {/* Embudo + Origen */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Actividad */}
         <div className="panel p-6 lg:col-span-2">
@@ -227,147 +226,96 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Fila inferior */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Calidad de leads (donut) */}
-        <div className="panel p-6 flex flex-col items-center">
-          <h2 className="text-lg font-semibold text-violet-50 self-start mb-4">
-            Calidad de los leads
-          </h2>
-          <Donut value={metrics.hotPct} label={`${metrics.hotPct}%`} sublabel="Calientes" />
-          <div className="flex gap-3 mt-5 text-xs">
-            <span className="chip chip-hot">🔥 {metrics.hot} calientes</span>
-            <span className="chip chip-warm">🌤️ {metrics.warm} templados</span>
-            <span className="chip chip-cold">❄️ {metrics.cold} fríos</span>
-          </div>
+function TuDia({
+  todayBookings,
+  next7Bookings,
+  agendaLabel,
+}: {
+  todayBookings: Booking[];
+  next7Bookings: Booking[];
+  agendaLabel: string;
+}) {
+  const bothEmpty = todayBookings.length === 0 && next7Bookings.length === 0;
+
+  return (
+    <div className="panel p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-violet-50 flex items-center gap-2">
+          <IconCalendar className="text-violet-300" width={18} height={18} /> Tu día
+        </h2>
+        <Link href="/reservas" className="text-xs text-violet-300 hover:text-white">
+          Ver calendario →
+        </Link>
+      </div>
+
+      {bothEmpty ? (
+        <div className="text-sm text-violet-300/50 space-y-1">
+          <p>No hay {agendaLabel.toLowerCase()} para hoy.</p>
+          <p>Sin {agendaLabel.toLowerCase()} próximas esta semana.</p>
         </div>
-
-        {/* Leads calientes */}
-        <div id="leads-por-contactar" className="panel p-6 scroll-mt-24">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-violet-50">
-              Leads por contactar
-            </h2>
-            <Link href="/conversations" className="text-xs text-violet-300 hover:text-white">
-              Ver todos →
-            </Link>
-          </div>
-          <div className="space-y-3">
-            {hotLeads.map((c) => (
-              <Link
-                key={c.contact.id}
-                href={`/conversations/${c.contact.id}`}
-                className="flex items-center gap-3 panel-tight px-3 py-2.5 hover:border-violet-500/40 transition"
-              >
-                <div
-                  className="size-9 rounded-full grid place-items-center text-xs font-bold text-white shrink-0"
-                  style={{ background: "linear-gradient(140deg,#8b5cf6,#6d28d9)" }}
-                >
-                  {(c.contact.name ?? c.contact.phone ?? "?").slice(0, 2).toUpperCase()}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-violet-50 truncate">
-                    {c.contact.name ?? c.contact.phone}
-                  </div>
-                  <div className="text-[11px] text-violet-300/60 truncate">
-                    {c.lastMessage?.content ?? "—"}
-                  </div>
-                </div>
-                <span className={`chip chip-${c.lead!.score}`}>
-                  {scoreLabel(c.lead!.score)}
-                </span>
-              </Link>
-            ))}
-            {hotLeads.length === 0 && (
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Hoy */}
+          <div>
+            <h3 className="text-xs uppercase tracking-wider text-violet-300/60 mb-2.5">Hoy</h3>
+            {todayBookings.length === 0 ? (
               <p className="text-sm text-violet-300/50">
-                Todavía no hay leads cualificados.
+                No hay {agendaLabel.toLowerCase()} para hoy.
               </p>
+            ) : (
+              <div className="space-y-2">
+                {todayBookings.map((b) => (
+                  <div key={b.id} className="flex items-center gap-3 panel-tight px-3 py-2.5">
+                    <span className="font-mono text-violet-200 w-12 shrink-0">
+                      {b.scheduled_at?.slice(11, 16)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium text-violet-50 truncate">{b.customer_name}</div>
+                      <div className="text-[11px] text-violet-300/60 truncate">{b.service_name ?? b.notes ?? ""}</div>
+                    </div>
+                    <span className={`chip ${b.status === "confirmed" ? "chip-cold" : "chip-warm"}`}>
+                      {b.status === "confirmed" ? "Confirmada" : "Pendiente"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Próximos 7 días */}
+          <div>
+            <h3 className="text-xs uppercase tracking-wider text-violet-300/60 mb-2.5">
+              Próximos 7 días
+            </h3>
+            {next7Bookings.length === 0 ? (
+              <p className="text-sm text-violet-300/50">
+                Sin {agendaLabel.toLowerCase()} próximas.
+              </p>
+            ) : (
+              <div className="space-y-2.5">
+                {next7Bookings.slice(0, 5).map((b) => (
+                  <Link
+                    key={b.id}
+                    href={`/reservas#booking-${b.id}`}
+                    className="flex items-center gap-2 text-sm hover:opacity-80 transition"
+                  >
+                    <span className="size-1.5 rounded-full bg-violet-400 shrink-0" />
+                    <span className="text-violet-300/70 w-28 shrink-0 capitalize">
+                      {new Date(`${dateKeyOf(b.scheduled_at!)}T12:00:00`).toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" })}
+                    </span>
+                    <span className="font-mono text-violet-200 shrink-0">{b.scheduled_at?.slice(11, 16)}</span>
+                    <span className="text-violet-50 truncate">{b.customer_name}</span>
+                  </Link>
+                ))}
+              </div>
             )}
           </div>
         </div>
-
-        {/* Eficiencia del agente */}
-        <div className="panel p-6">
-          <h2 className="text-lg font-semibold text-violet-50 mb-5">
-            Eficiencia de Leo
-          </h2>
-          <div className="space-y-5">
-            <Meter label="Tasa de respuesta" value={98} />
-            <Meter label="Tasa de cualificación" value={qualRate} />
-            <Meter label="Conversión a caliente" value={hotRate} />
-          </div>
-          <div className="mt-6 panel-tight p-3 flex gap-2.5 text-xs text-violet-200/80">
-            <IconBolt className="text-fuchsia-300 shrink-0" width={16} height={16} />
-            <p>
-              Leo ha respondido <strong className="text-violet-100">{metrics.totalMessages}</strong>{" "}
-              mensajes. Enfoque sugerido: acelerar la programación de llamadas con los leads templados.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Agenda */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Agenda de hoy */}
-        <div className="panel p-6 lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-violet-50 flex items-center gap-2">
-              <IconCalendar className="text-violet-300" width={18} height={18} /> Agenda de hoy
-            </h2>
-            <Link href="/reservas" className="text-xs text-violet-300 hover:text-white">
-              Ver calendario →
-            </Link>
-          </div>
-          {todayBookings.length === 0 ? (
-            <p className="text-sm text-violet-300/50 py-6 text-center">
-              No hay {agendaLabel.toLowerCase()} para hoy.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {todayBookings.map((b) => (
-                <div key={b.id} className="flex items-center gap-3 panel-tight px-3 py-2.5">
-                  <span className="font-mono text-violet-200 w-12 shrink-0">
-                    {b.scheduled_at?.slice(11, 16)}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium text-violet-50 truncate">{b.customer_name}</div>
-                    <div className="text-[11px] text-violet-300/60 truncate">{b.service_name ?? b.notes ?? ""}</div>
-                  </div>
-                  <span className={`chip ${b.status === "confirmed" ? "chip-cold" : "chip-warm"}`}>
-                    {b.status === "confirmed" ? "Confirmada" : "Pendiente"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Próximas */}
-        <div className="panel p-6">
-          <h2 className="text-lg font-semibold text-violet-50 mb-4">Próximamente</h2>
-          {upcomingBookings.length === 0 ? (
-            <p className="text-sm text-violet-300/50">Sin {agendaLabel.toLowerCase()} próximas.</p>
-          ) : (
-            <div className="space-y-2.5">
-              {upcomingBookings.slice(0, 5).map((b) => (
-                <Link
-                  key={b.id}
-                  href="/reservas"
-                  className="flex items-center gap-2 text-sm hover:opacity-80 transition"
-                >
-                  <span className="size-1.5 rounded-full bg-violet-400 shrink-0" />
-                  <span className="text-violet-300/70 w-28 shrink-0 capitalize">
-                    {new Date(`${dateKeyOf(b.scheduled_at!)}T12:00:00`).toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" })}
-                  </span>
-                  <span className="font-mono text-violet-200 shrink-0">{b.scheduled_at?.slice(11, 16)}</span>
-                  <span className="text-violet-50 truncate">{b.customer_name}</span>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   );
 }

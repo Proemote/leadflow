@@ -1,7 +1,59 @@
-# CONTEXTO — Sesión de Desarrollo (2026-07-08)
+# CONTEXTO — Sesión de Desarrollo (2026-07-19)
 
 **Desarrollador**: Claude Code  
 **Proyecto**: LeadFlow CRM (Next.js 16, Supabase, Vercel)  
+**Objetivo**: Reestructurar el Panel con jerarquía clara + página /jornada + sección Leo con pestañas (v1.8)
+
+---
+
+## 🎯 Qué se logró en esta sesión (19 julio)
+
+### 1. Panel reestructurado en 3 zonas
+
+Orden final del Panel: **briefing de Leo → "Tu día" → acciones rápidas → Salud de la cartera → Embudo + Origen**.
+
+- **Card de briefing de Leo**: sustituye al saludo con chips sueltos. Texto narrativo dinámico que combina saludo + nº de oportunidades calientes + citas de hoy + resumen de eficiencia (si la cualificación < 30%, incluye la sugerencia de acelerar llamadas con leads templados). Conserva la alerta de cliente VIP en riesgo. Botón "Empezar mi jornada" → navega a `/jornada`.
+- **Widget "Tu día"**: fusiona las antiguas cards "Agenda de hoy" + "Próximamente" en un solo componente con dos bloques (Hoy / Próximos 7 días). Compacto cuando ambos están vacíos.
+- **Fuera del Panel**: "Calidad de los leads", "Eficiencia de Leo" y "Leads por contactar" se movieron a la pestaña Rendimiento de la sección Leo (mismos cálculos, solo cambia dónde se renderizan).
+
+### 2. Nueva página `/jornada` — plan del día de Leo
+
+Checklist agrupado, cada ítem con enlace directo a su recurso:
+- 🔥 **Leads calientes sin responder** (`lead.score === "hot"` + último mensaje del cliente) → conversación concreta
+- 📅 **Citas de hoy** → `/reservas#booking-{id}`
+- 💼 **Oportunidades cerca de cerrar** (Propuesta/Negociación con `expected_close` ≤ hoy+7 días, vencidas incluidas) → `/oportunidades#opp-{id}`
+- 💡 **Sugerencias de Leo** desglosadas: un ítem "Contactar a {nombre}" por cada lead templado
+
+**Persistencia**: tabla nueva `jornada_completados` (migración `supabase/migrations_jornada.sql`, ya aplicada en producción). Se añadió `user_id` al esquema por el multi-tenancy + `unique(user_id, fecha, item_key)` + RLS sin políticas (patrón `proposal_files`). Marcar = upsert vía `POST /api/jornada`; desmarcar = DELETE. Fallback a localStorage en modo demo.
+
+⚠️ `/jornada` **no está en el sidebar a propósito**: solo se llega desde el botón del briefing (es un ritual del día, no una sección de navegación).
+
+### 3. Sección "Leo" con pestañas
+
+- Sidebar y menú móvil: "Leo · Instrucciones" → **"Leo"**.
+- `/settings` ahora tiene tabs (`LeoTabs.tsx`): **Instrucciones** (editor de personalidad + reglas irrompibles, sin cambios) y **Rendimiento** (las 3 cards movidas del Panel).
+
+### 4. Topbar y deep-links
+
+- Icono de **calendario en la topbar** (izquierda de notificaciones, mismo estilo circular) → `/reservas`.
+- Anclas para enlaces directos: `id="opp-{id}"` en tarjetas del Kanban, `id="booking-{id}"` en filas de agenda. Sin cambios de lógica.
+
+### Archivos nuevos
+
+- `src/app/(panel)/jornada/page.tsx` · `src/components/JornadaChecklist.tsx` · `src/lib/jornada.ts` · `src/app/api/jornada/route.ts` · `src/components/LeoTabs.tsx` · `supabase/migrations_jornada.sql`
+
+### Archivos modificados
+
+- `src/app/(panel)/dashboard/page.tsx` (reestructura completa) · `src/app/(panel)/settings/page.tsx` (tabs + cards de rendimiento) · `Topbar.tsx` · `Sidebar.tsx` · `MobileSidebar.tsx` · `KanbanBoard.tsx` (ancla) · `BookingsManager.tsx` (anclas)
+
+### Verificación
+
+`tsc --noEmit` limpio · `next build` OK · smoke test en modo demo (todas las páginas 200, contenido y enlaces verificados). Nota operativa: el build local no funciona desde el sandbox de Claude Code (macOS bloquea a Turbopack listar `~/Desktop`); workaround = compilar una copia en /tmp.
+
+---
+
+# Sesión anterior (2026-07-08)
+
 **Objetivo**: Integración de webhook Brevo + Fix de sincronización de contactos
 
 ---
@@ -187,5 +239,5 @@ Ver en raíz del proyecto:
 
 ---
 
-**Última actualización**: 2026-07-08 12:00 UTC  
-**Estado**: ✅ READY FOR BREVO CONFIGURATION
+**Última actualización**: 2026-07-19  
+**Estado**: ✅ v1.8 — Panel con jerarquía + /jornada desplegable

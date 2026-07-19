@@ -24,7 +24,7 @@ const NAV = [
   { href: "/propuestas", label: "Propuestas", Icon: IconFile },
   { href: "/servicios", label: "Servicios", Icon: IconMenu },
   { href: "/reservas", label: "Agenda", Icon: IconCalendar },
-  { href: "/settings", label: "Leo · Instrucciones", Icon: IconSettings },
+  { href: "/settings", label: "Leo", Icon: IconSettings },
   { href: "/test-chat", label: "Chat de prueba", Icon: IconFlask },
   { href: "/configuracion", label: "Ajustes", Icon: IconSliders },
 ];

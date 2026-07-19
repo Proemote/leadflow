@@ -287,7 +287,7 @@ function AgendaView({
             {upcoming.slice(0, 8).map((b) => {
               const meta = STATUS_META[b.status];
               return (
-                <div key={b.id} className="flex flex-wrap items-center gap-3 py-3">
+                <div key={b.id} id={`booking-${b.id}`} className="flex flex-wrap items-center gap-3 py-3 scroll-mt-24">
                   <div className="min-w-0 flex-1">
                     <div className="font-medium text-violet-50">{b.customer_name}</div>
                     <div className="text-xs text-violet-300/60">
@@ -342,7 +342,8 @@ function AgendaEvent({ booking: b, isAppt, onPatch, onDelete }: {
   };
   return (
     <div
-      className="rounded-xl px-3 py-2 text-sm flex flex-wrap items-center gap-2 border"
+      id={`booking-${b.id}`}
+      className="rounded-xl px-3 py-2 text-sm flex flex-wrap items-center gap-2 border scroll-mt-24"
       style={{ background: colorMap[b.status], borderColor: "var(--color-edge-soft)" }}
     >
       <span className="font-mono text-[11px] text-violet-300/70 w-10 shrink-0">

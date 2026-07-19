@@ -1,4 +1,5 @@
-import { IconSearch } from "./icons";
+import Link from "next/link";
+import { IconSearch, IconCalendar } from "./icons";
 import { ThemeToggle } from "./ThemeToggle";
 import { getProfile, profileInitials } from "@/lib/profile";
 import { ProfileDropdown } from "./ProfileDropdown";
@@ -19,6 +20,14 @@ export async function Topbar({ subtitle }: { subtitle?: string }) {
       </div>
       <div className="flex items-center gap-3 ml-auto">
         <ThemeToggle compact />
+        <Link
+          href="/reservas"
+          className="grid place-items-center size-10 rounded-xl border border-[var(--color-edge)] text-violet-200 hover:bg-violet-500/10 transition"
+          aria-label="Agenda"
+          title="Agenda"
+        >
+          <IconCalendar />
+        </Link>
         <NotificationDropdown />
         <ProfileDropdown
           name={profile.name}

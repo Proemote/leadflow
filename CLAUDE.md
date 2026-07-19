@@ -59,6 +59,15 @@ Diferenciador central de Proemote: automatización y gestión de clientes con IA
 
 Changelog por sprint, del más reciente al más antiguo. Cada versión agrupa un lote de cambios desplegados junto en un commit (o commit + migración de BD asociada).
 
+### v1.8 — "Panel con jerarquía + /jornada" (19 julio)
+- **Panel reestructurado en 3 zonas:** (1) card de briefing de Leo con texto narrativo dinámico (saludo + oportunidades calientes + citas hoy + resumen de eficiencia con sugerencia si la cualificación es baja) y alerta de cliente en riesgo; (2) widget **"Tu día"** que fusiona "Agenda de hoy" + "Próximamente" (bloques Hoy / Próximos 7 días, compacto cuando está vacío); (3) Salud de la cartera + Estado del embudo + Origen de leads sin cambios. Las acciones rápidas se mantienen entre "Tu día" y "Salud de la cartera".
+- **Nueva página `/jornada`** (plan del día de Leo): checklist agrupado — 🔥 leads calientes con último mensaje sin responder (`lead.score==="hot"` + `lastMessage.role==="user"`), 📅 citas de hoy, 💼 oportunidades en Propuesta/Negociación con `expected_close` ≤ hoy+7 días, 💡 sugerencias de Leo desglosadas (un ítem por lead templado). Cada ítem con enlace directo (conversación / `#booking-{id}` / `#opp-{id}`). **No está en el sidebar a propósito** — solo se llega desde el botón "Empezar mi jornada" del briefing.
+- **Persistencia del checklist:** tabla nueva `jornada_completados` (migración `supabase/migrations_jornada.sql`, aplicada en producción) con `user_id` añadido al esquema base por el multi-tenancy + unique(user_id, fecha, item_key) + RLS sin políticas (patrón proposal_files). Endpoint `/api/jornada` (POST upsert / DELETE) con `withAuth`. Fallback a localStorage en modo demo. Lib nueva `src/lib/jornada.ts`, componente `JornadaChecklist.tsx`.
+- **Topbar:** icono de calendario (enlace a `/reservas`) a la izquierda de notificaciones, mismo estilo de botón circular.
+- **Sección Leo con pestañas:** sidebar renombrado "Leo · Instrucciones" → "Leo" (también en MobileSidebar). `/settings` ahora tiene tabs (`LeoTabs.tsx`): **Instrucciones** (SettingsForm intacto) y **Rendimiento** (las cards "Calidad de los leads", "Leads por contactar" y "Eficiencia de Leo" movidas tal cual desde el Panel — mismos cálculos, solo cambia dónde se renderizan).
+- **Anclas para deep-links:** `id="opp-{id}"` en tarjetas del Kanban y `id="booking-{id}"` en filas de agenda (AgendaEvent + lista de próximas), con `scroll-mt-24`. Sin cambios de lógica en ninguno de los dos módulos.
+- Verificado: `tsc --noEmit` limpio + `next build` OK + smoke test en modo demo (páginas 200, contenido y enlaces correctos). Nota: el build local no puede ejecutarse desde el sandbox de Claude (macOS bloquea listar `~/Desktop` a Turbopack); se verificó compilando una copia en /tmp.
+
 ### v1.7 — "Kanban responsive al tema" (19 julio, commit `e4dfcd5`)
 - **UI/UX mejorada:** Kanban board ahora funciona correctamente en light mode. Sustituida paleta de colores hardcodeada por variables CSS del sistema de temas.
 - Cambios en `src/components/KanbanBoard.tsx`:

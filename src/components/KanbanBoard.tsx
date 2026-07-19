@@ -149,10 +149,11 @@ export function KanbanBoard({
                 {items.map((o) => (
                   <article
                     key={o.id}
+                    id={`opp-${o.id}`}
                     draggable
                     onDragStart={() => setDragId(o.id)}
                     onDragEnd={() => setDragId(null)}
-                    className="panel-tight p-3 cursor-grab active:cursor-grabbing hover:border-primary/40 transition"
+                    className="panel-tight p-3 cursor-grab active:cursor-grabbing hover:border-primary/40 transition scroll-mt-24"
                     style={{ borderLeft: `3px solid ${stageAccent(stage)}` }}
                   >
                     <div className="flex items-start justify-between gap-2">
