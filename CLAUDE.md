@@ -55,9 +55,18 @@ Diferenciador central de Proemote: automatización y gestión de clientes con IA
 
 ---
 
-## Registro de cambios (16-17 julio 2026)
+## Registro de cambios (16-19 julio 2026)
 
 Changelog por sprint, del más reciente al más antiguo. Cada versión agrupa un lote de cambios desplegados junto en un commit (o commit + migración de BD asociada).
+
+### v1.7 — "Kanban responsive al tema" (19 julio, commit `e4dfcd5`)
+- **UI/UX mejorada:** Kanban board ahora funciona correctamente en light mode. Sustituida paleta de colores hardcodeada por variables CSS del sistema de temas.
+- Cambios en `src/components/KanbanBoard.tsx`:
+  - `text-violet-50` → `text-foreground` (adapta a theme automáticamente)
+  - `text-violet-300/X` → `text-muted-foreground/X`
+  - Estilos inline `rgba()` hardcodeados → `var(--panel-tight-bg)`, `var(--glow-1)`, `var(--color-edge)`
+  - Inputs y botones usan `bg-input` y `hover:bg-primary/20` en lugar de colores hardcodeados
+- **Resultado:** Tarjetas, textos y controles del kanban ahora legibles en ambos temas (light/dark) sin cambios funcionales. Reutiliza las variables CSS del `globals.css` (`:root` y `.light`) que ya estaban definidas.
 
 ### v1.6 — "Notas, etapa y propuestas" (17 julio, commit `ae1ba68`)
 - Notas internas y etapa del customer journey dejan de estar escondidas en "Editar contacto": panel de notas siempre visible con edición inline + selector de etapa junto al nombre, ambos guardan al instante (`quickPatchContact` en `CustomerDetail.tsx`).
@@ -97,7 +106,15 @@ Changelog por sprint, del más reciente al más antiguo. Cada versión agrupa un
 
 ---
 
-## Estado actual (16 julio 2026)
+## Estado actual (19 julio 2026)
+
+### ✅ Completado — Sistema de temas (light/dark mode responsive)
+
+**19 julio:** Kanban board y todos los componentes ahora responden correctamente a cambios de tema.
+- Sistema de temas unificado via CSS variables (`globals.css`: `:root` para dark, `.light` para light mode)
+- Componentes UI (`panel`, `input`, `btn-*`, `chip-*`, texto) usan variables semánticas
+- Kanban (`KanbanBoard.tsx`) migrado a usar `text-foreground`, `text-muted-foreground`, `var(--panel-tight-bg)`, etc. en lugar de colores hardcodeados
+- **Prueba verificada:** Tarjetas, métricas, formulario y selectores funcionan correctamente en ambos temas
 
 ### ✅ Completado — Sistema de autenticación multi-usuario
 
@@ -353,4 +370,4 @@ WHATSAPP_BOT_TOKEN=...
 
 ---
 
-**Última actualización:** 17 julio 2026 (v1.6 "Notas, etapa y propuestas" — ver Registro de cambios arriba para el historial completo de v1.1 a v1.6). Pendiente de antes: activar proveedor Google en Supabase, corregir Site URL/Redirect URLs para el email de confirmación, SMTP Resend, RLS en 3 tablas (`contact_services`, `contact_notes`, `profiles`), aislar `settings`/business config por usuario, y personalizar por contacto el prompt del cron de follow-up (hoy solo el webhook en vivo usa etapa/notas del contacto).
+**Última actualización:** 19 julio 2026 (v1.7 "Kanban responsive al tema" — ver Registro de cambios arriba para el historial completo de v1.1 a v1.7). Pendiente: activar proveedor Google en Supabase, corregir Site URL/Redirect URLs para el email de confirmación, SMTP Resend, RLS en 3 tablas (`contact_services`, `contact_notes`, `profiles`), aislar `settings`/business config por usuario, personalizar por contacto el prompt del cron de follow-up, webhook de Brevo entrante, y dashboard de KPIs históricos.
