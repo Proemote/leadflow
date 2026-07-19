@@ -4,17 +4,20 @@ import { useState, ReactNode } from "react";
 
 /**
  * Navegación por pestañas de la sección Leo:
- * Instrucciones (editor de personalidad) · Rendimiento (métricas del agente).
- * Ambos paneles llegan ya renderizados desde el servidor como ReactNode.
+ * Instrucciones (editor de personalidad cara a WhatsApp) · Rendimiento
+ * (métricas del agente) · Asistente interno (personalidad de "Hablar con Leo").
+ * Los paneles llegan ya renderizados desde el servidor como ReactNode.
  */
 export function LeoTabs({
   instrucciones,
   rendimiento,
+  asistente,
 }: {
   instrucciones: ReactNode;
   rendimiento: ReactNode;
+  asistente: ReactNode;
 }) {
-  const [tab, setTab] = useState<"instrucciones" | "rendimiento">("instrucciones");
+  const [tab, setTab] = useState<"instrucciones" | "rendimiento" | "asistente">("instrucciones");
 
   return (
     <div className="space-y-6">
@@ -23,6 +26,7 @@ export function LeoTabs({
           [
             ["instrucciones", "Instrucciones"],
             ["rendimiento", "Rendimiento"],
+            ["asistente", "Asistente interno"],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -46,6 +50,7 @@ export function LeoTabs({
 
       <div hidden={tab !== "instrucciones"}>{instrucciones}</div>
       <div hidden={tab !== "rendimiento"}>{rendimiento}</div>
+      <div hidden={tab !== "asistente"}>{asistente}</div>
     </div>
   );
 }

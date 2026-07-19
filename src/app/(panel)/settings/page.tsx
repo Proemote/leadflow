@@ -8,8 +8,10 @@ import {
   isSupabaseConfigured,
 } from "@/lib/db";
 import { DEFAULT_SYSTEM_PROMPT } from "@/lib/leo";
+import { DEFAULT_INTERNAL_PROMPT, INTERNAL_PROMPT_KEY } from "@/lib/leo-internal";
 import { getServerUserId } from "@/lib/api-auth";
 import { SettingsForm } from "@/components/SettingsForm";
+import { InternalAssistantForm } from "@/components/InternalAssistantForm";
 import { LeoTabs } from "@/components/LeoTabs";
 import { Donut, Meter } from "@/components/charts";
 import { IconBolt } from "@/components/icons";
@@ -21,8 +23,9 @@ export default async function SettingsPage() {
   const userId = await getServerUserId();
   const scoped = isSupabaseConfigured() && userId;
 
-  const [prompt, metrics, conversations] = await Promise.all([
+  const [prompt, internalPrompt, metrics, conversations] = await Promise.all([
     getSetting("system_prompt", DEFAULT_SYSTEM_PROMPT),
+    getSetting(INTERNAL_PROMPT_KEY, DEFAULT_INTERNAL_PROMPT),
     scoped ? getDashboardMetricsForUser(userId) : getDashboardMetrics(),
     scoped ? getConversationsForUser(userId) : getConversations(),
   ]);
@@ -50,6 +53,12 @@ export default async function SettingsPage() {
         instrucciones={
           <SettingsForm
             initialPrompt={prompt || DEFAULT_SYSTEM_PROMPT}
+            demo={!isSupabaseConfigured()}
+          />
+        }
+        asistente={
+          <InternalAssistantForm
+            initialPrompt={internalPrompt || DEFAULT_INTERNAL_PROMPT}
             demo={!isSupabaseConfigured()}
           />
         }

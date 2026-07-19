@@ -124,9 +124,14 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        <Link href="/jornada" className="btn-primary inline-flex items-center gap-2 mt-5">
-          Empezar mi jornada →
-        </Link>
+        <div className="flex flex-wrap items-center gap-3 mt-5">
+          <Link href="/jornada" className="btn-primary inline-flex items-center gap-2">
+            Empezar mi jornada →
+          </Link>
+          <Link href="/asistente" className="btn-ghost inline-flex items-center gap-2">
+            💬 Hablar con Leo
+          </Link>
+        </div>
       </div>
 
       {/* Tu día: agenda de hoy + próximos 7 días fusionadas */}
