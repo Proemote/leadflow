@@ -315,6 +315,10 @@ Commit `f8fcc99` (estilo) + `22f32e7` (Google, recuperar contraseña, checkbox).
 - `/reservas` — Agenda de citas
 - `/servicios` — Catálogo de servicios contratables
 - `/conversations` — Chat de WhatsApp integrado; solo conversaciones activas + "Nueva conversación"
+- `/jornada` — Plan del día de Leo (checklist persistente; sin entrada en sidebar, solo desde "Empezar mi jornada")
+- `/settings` — Sección Leo con pestañas: Instrucciones (prompt WhatsApp) · Rendimiento · Asistente interno (prompt propio)
+- `/asistente` — "Hablar con Leo": chat interno de Carlos con Leo, solo lectura + borradores con botón Copiar
+- `/test-chat` — Chat de prueba (simula un lead hablando con el Leo de WhatsApp)
 - `/configuracion` — Ajustes de negocio
 - `/login` — Login + signup (tabs), split-screen, Google OAuth, recuperar contraseña
 - `/reset-password` — Fijar nueva contraseña (tras enlace de recuperación)
@@ -324,6 +328,11 @@ Commit `f8fcc99` (estilo) + `22f32e7` (Google, recuperar contraseña, checkbox).
 ## API Routes usadas
 
 > Desde el 16 julio (tarde), prácticamente todos los endpoints de datos del CRM están protegidos con `withAuth()` y aislados por `user_id` (ver sección de multi-tenancy arriba). Excepciones conscientes: `/api/business`, `/api/settings`, `/api/profile` (tabla `settings` sin `user_id`, siguen globales) y los webhooks/cron (`/api/webhook`, `/api/chat`, `/api/cron/*`, `/api/webhooks/brevo`), que no tienen sesión de usuario.
+
+**Leo / IA:**
+- `POST /api/chat` — Chat de prueba (Leo cara a lead, sin auth ni WhatsApp real)
+- `POST /api/assistant-chat` — Asistente interno "Hablar con Leo" (con sesión; tools de solo lectura de `lib/leo-internal.ts`)
+- `POST /api/settings` — Guarda `{system_prompt}` (WhatsApp) o `{internal_prompt}` (asistente interno)
 
 **Autenticación:**
 - `POST /api/auth/logout` — Logout centralizado (invalida sesión + cookies)
@@ -389,4 +398,4 @@ WHATSAPP_BOT_TOKEN=...
 
 ---
 
-**Última actualización:** 19 julio 2026 (v1.7 "Kanban responsive al tema" — ver Registro de cambios arriba para el historial completo de v1.1 a v1.7). Pendiente: activar proveedor Google en Supabase, corregir Site URL/Redirect URLs para el email de confirmación, SMTP Resend, RLS en 3 tablas (`contact_services`, `contact_notes`, `profiles`), aislar `settings`/business config por usuario, personalizar por contacto el prompt del cron de follow-up, webhook de Brevo entrante, y dashboard de KPIs históricos.
+**Última actualización:** 20 julio 2026 (v1.9 "Asistente interno (Hablar con Leo)" — ver Registro de cambios arriba para el historial completo de v1.1 a v1.9). Pendiente: activar proveedor Google en Supabase, corregir Site URL/Redirect URLs para el email de confirmación, SMTP Resend, RLS en 3 tablas (`contact_services`, `contact_notes`, `profiles`), aislar `settings`/business config por usuario, personalizar por contacto el prompt del cron de follow-up, webhook de Brevo entrante, y dashboard de KPIs históricos.
